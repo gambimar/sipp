@@ -1,12 +1,11 @@
 # MRIGait_EmpkinS
 
-
+Repository for C01 - Phase I - WP4: MRI Validation of MSK model personalization
 
 ## Getting started
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+1. Clone this repository
+2. Get our fork of SMPL-Fitting from [here](github)
 
 ## Add your files
 
