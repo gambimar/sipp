@@ -34,6 +34,14 @@ def register_scanned_meshes(target, source, head_vertices_path = "data/resources
 def save_trimesh_to_obj(mesh, file_path):
     with open(file_path, 'w') as f:
         mesh.export(file_obj=f, file_type='obj')
+    # Delete all rows that start with 'mtllib' and 'usemtl' in the file
+    with open(file_path, 'r') as f:
+        lines = f.readlines()
+    with open(file_path, 'w') as f:
+        for line in lines:
+            if not line.startswith('mtllib') and not line.startswith('usemtl'):
+                f.write(line)
+                
 
 def save_landmarks_to_json(landmarks, file_path):
     import json
@@ -121,5 +129,26 @@ def create_mesh_without_ignored_segments(scan, smpl_fit, ignore_segments, vertex
     save_trimesh_to_obj(scan, res_path_ignored_segments)
     return res_path_ignored_segments
 
+def get_approximate_landmarks_scaneca(height): 
+    landmarks = {}
+    landmarks['Lt. Calcaneous Post.'] = [0.3258, 0.31, 0.03] # Fixed scaneca foot position
+    landmarks['Rt. Calcaneous Post.'] = [0.5622, 0.31, 0.03]
+    wrist_height = 0.5 * height
+    landmarks['Lt. Ulnar Styloid'] = [0.1139, 0.44, wrist_height] # The wrist x-z position is fixed, height is adjustable 
+    landmarks['Rt. Ulnar Styloid'] = [0.8020, 0.44, wrist_height] 
+    suprasternale_height = 0.8 * height
+    sellion_height = 0.93 * height
+    landmarks['Suprasternale'] = [0.45, 0.51, suprasternale_height]
+    landmarks['Sellion'] = [0.45, 0.58, sellion_height]   
+    for k in landmarks:
+        landmarks[k] = list(rotate_scaneca_coordinate_system(np.array(landmarks[k])))
+    return landmarks
 
-
+def rotate_scaneca_coordinate_system(vertices):
+    if len(vertices.shape) == 2:
+        vertices_new = vertices[:,[0,2,1]]
+        vertices_new[:,0] *= -1
+    else:
+        vertices_new = vertices[[0,2,1]]
+        vertices_new[0] *= -1
+    return vertices_new
