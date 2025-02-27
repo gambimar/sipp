@@ -152,3 +152,21 @@ def rotate_scaneca_coordinate_system(vertices):
         vertices_new = vertices[[0,2,1]]
         vertices_new[0] *= -1
     return vertices_new
+
+def save_np_res_as_pkl(np_res_path):
+    import pickle
+    np_res = np.load(np_res_path, allow_pickle=True)
+    pkl_res_path = np_res_path.replace(".npz", ".pkl")
+    res_as_dict = {}
+    for k in np_res.keys():
+        if k in ['body_model','name']:
+            continue
+        print(np_res[k].shape, k)
+        if k == "shape":
+            res_as_dict["betas"] = np_res[k].T.squeeze()
+        elif k == "pose":
+            res_as_dict["pose"] = np_res[k].T.squeeze()
+        else:
+            res_as_dict[k] = np_res[k]
+    with open(pkl_res_path, 'wb') as f:
+        pickle.dump(res_as_dict, f)

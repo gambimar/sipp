@@ -23,11 +23,10 @@ for participant in ['P01', 'P02', 'P03', 'P04', 'P05', 'P06']:
         output_path = f"../results/{participant}/bodyhull/hit_prediction/{scan}/"
         gender = participant_info[participant_info['participant'] == participant].sex.values[0]
         gender = 'male' if gender == 'M' else 'female'
-        command = f"python demos/infer_smpl.py --exp_name=hit_{gender} --to_infer {input_path} --device {device} --to_infer smpl_file --out_folder {output_path}"
+        command = f"python demos/infer_smpl.py --exp_name=hit_{gender} --target_body {input_path} --device {device} --to_infer smpl_file --out_folder {output_path}"
         commandlist.append(command)
 
 if __name__ == '__main__':
     for command in commandlist:
         print(command)
         subprocess.run(command, shell=True)
-        break

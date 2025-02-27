@@ -112,7 +112,7 @@ if __name__ == "__main__":
                 cfg['body_model_gender'] = "FEMALE" if sex == "F" else "MALE" #
                 init_coords = torch.tensor([0, 0.9, 0] if not mesh_name.startswith("scaneca") else [-0.45, 0.9, 0.31])
                 cfg['init_params'] = {'scale':torch.tensor(height/1.7), 'trans':init_coords} # ca. ~1.7 is the average SMPL height, use as initial guess
-                #fit_body_model.fit_body_model_onto_scan(cfg)
+                fit_body_model.fit_body_model_onto_scan(cfg)
                 res_path = f"results/{pid}/bodyhull/smpl_fit/{scan_info['scan_name']}/{scan_info['fit_type']}/{mesh_name[:-4]}.npz"
                 smpl_result = np.load(res_path, allow_pickle=True)
                 mesh_utils.smpl_result_to_obj(smpl_result, res_path.replace(".npz", ".obj"), has_faces=False)
@@ -131,7 +131,7 @@ if __name__ == "__main__":
                     cfg['body_model'] = ssm
                     cfg['save_path'] = mesh_utils.create_results_dir(scan_info)
                     # Fit the model again
-                    #fit_body_model.fit_body_model_onto_scan(cfg)
+                    fit_body_model.fit_body_model_onto_scan(cfg)
                     smpl_result = np.load(f"{cfg['save_path']}/{mesh_name.replace('.obj','_ignored_segments.npz')}", allow_pickle=True)
                     mesh_utils.save_np_res_as_pkl(f"{cfg['save_path']}/{mesh_name.replace('.obj','_ignored_segments.npz')}")
                     mesh_utils.smpl_result_to_obj(smpl_result, new_res_path.replace(".npz", ".obj").replace("initial","loose"), has_faces=False)
