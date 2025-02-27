@@ -112,47 +112,50 @@ if __name__ == "__main__":
                 cfg['body_model_gender'] = "FEMALE" if sex == "F" else "MALE" #
                 init_coords = torch.tensor([0, 0.9, 0] if not mesh_name.startswith("scaneca") else [-0.45, 0.9, 0.31])
                 cfg['init_params'] = {'scale':torch.tensor(height/1.7), 'trans':init_coords} # ca. ~1.7 is the average SMPL height, use as initial guess
-                fit_body_model.fit_body_model_onto_scan(cfg)
+                #fit_body_model.fit_body_model_onto_scan(cfg)
                 res_path = f"results/{pid}/bodyhull/smpl_fit/{scan_info['scan_name']}/{scan_info['fit_type']}/{mesh_name[:-4]}.npz"
                 smpl_result = np.load(res_path, allow_pickle=True)
                 mesh_utils.smpl_result_to_obj(smpl_result, res_path.replace(".npz", ".obj"), has_faces=False)
 
-                ## 2. Fit - Define ROI's
-                print(pid,': 2. Fit; ignoring segments that usually have artifacts')
-                # Create a version of the mesh where the ignored segments are removed
-                curr_scan = mesh_utils.load_trimesh_from_file(mesh_path)
-                new_res_path = mesh_utils.create_mesh_without_ignored_segments(curr_scan, smpl_result,
-                                                                ignore_segments, vertex_segmentation, res_path)
-                # Update the config file
-                cfg['ignore_segments'] = ignore_segments if not mesh_name.startswith("scaneca") else ignore_segments_scaneca
-                cfg['scan_path'] = new_res_path
-                scan_info["fit_type"] = "loose"
-                cfg['save_path'] = mesh_utils.create_results_dir(scan_info)
-                # Fit the model again
-                fit_body_model.fit_body_model_onto_scan(cfg)
-                smpl_result = np.load(f"{cfg['save_path']}/{mesh_name.replace('.obj','_ignored_segments.npz')}", allow_pickle=True)
-                mesh_utils.smpl_result_to_obj(smpl_result, new_res_path.replace(".npz", ".obj").replace("initial","loose"), has_faces=False)
-                save_configs(cfg)
+                for ssm in ["smpl", "skel"]:
+                    ## 2. Fit - Define ROI's
+                    print(pid,': 2. Fit; ignoring segments that usually have artifacts for the', ssm, 'model')
+                    # Create a version of the mesh where the ignored segments are removed
+                    curr_scan = mesh_utils.load_trimesh_from_file(mesh_path)
+                    new_res_path = mesh_utils.create_mesh_without_ignored_segments(curr_scan, smpl_result,
+                                                                    ignore_segments, vertex_segmentation, res_path)
+                    # Update the config file
+                    cfg['ignore_segments'] = ignore_segments if not mesh_name.startswith("scaneca") else ignore_segments_scaneca
+                    cfg['scan_path'] = new_res_path
+                    scan_info["fit_type"] = "loose" if ssm == "smpl" else "loose_skel"
+                    cfg['body_model'] = ssm
+                    cfg['save_path'] = mesh_utils.create_results_dir(scan_info)
+                    # Fit the model again
+                    #fit_body_model.fit_body_model_onto_scan(cfg)
+                    smpl_result = np.load(f"{cfg['save_path']}/{mesh_name.replace('.obj','_ignored_segments.npz')}", allow_pickle=True)
+                    mesh_utils.save_np_res_as_pkl(f"{cfg['save_path']}/{mesh_name.replace('.obj','_ignored_segments.npz')}")
+                    mesh_utils.smpl_result_to_obj(smpl_result, new_res_path.replace(".npz", ".obj").replace("initial","loose"), has_faces=False)
+                    save_configs(cfg)
 
-                ## 3. Fit - Thight wrap
-                print(pid,': 3. Fit; tight fit without')
-                scan_info["fit_type"] = "tight"
-                cfg_loss_weights = load_loss_weights_config(
-                    "fit_verts_loss_weight_strategy",
-                    "default_option",
-                    path="SMPL-Fitting/configs/loss_weight_configs.yaml")
-                cfg_loss_weights = initialize_fit_verts_loss_weights(cfg_loss_weights)
-                cfg.update(cfg_tight_fit)
-                cfg["loss_weights"]=cfg_loss_weights
-                cfg['start_from_previous_results'] = cfg['save_path']
-                cfg['start_from_body_model'] = None
-                cfg['save_path'] = mesh_utils.create_results_dir(scan_info)
-                cfg = process_body_model_fit_verts(cfg)
-                set_seed(cfg["seed"])
-                save_configs(cfg)
-                # Fit the model to vertices
-                fit_vertices.fit_vertices_onto_scan(cfg)
-                smpl_result = np.load(f"{cfg['save_path']}/{mesh_name.replace('.obj', '_ignored_segments.npz')}",
-                                      allow_pickle=True)
-                mesh_utils.smpl_result_to_obj(smpl_result, f"{cfg['save_path']}/{mesh_name.replace('.obj', '_ignored_segments.obj')}", has_faces=False)
+                    ## 3. Fit - Thight wrap
+                    print(pid,': 3. Fit; tight fit without')
+                    scan_info["fit_type"] = "tight" if ssm == "smpl" else "tight_skel"
+                    cfg_loss_weights = load_loss_weights_config(
+                        "fit_verts_loss_weight_strategy",
+                        "default_option",
+                        path="SMPL-Fitting/configs/loss_weight_configs.yaml")
+                    cfg_loss_weights = initialize_fit_verts_loss_weights(cfg_loss_weights)
+                    cfg.update(cfg_tight_fit)
+                    cfg["loss_weights"]=cfg_loss_weights
+                    cfg['start_from_previous_results'] = cfg['save_path']
+                    cfg['start_from_body_model'] = None
+                    cfg['save_path'] = mesh_utils.create_results_dir(scan_info)
+                    cfg = process_body_model_fit_verts(cfg)
+                    set_seed(cfg["seed"])
+                    save_configs(cfg)
+                    # Fit the model to vertices
+                    fit_vertices.fit_vertices_onto_scan(cfg)
+                    smpl_result = np.load(f"{cfg['save_path']}/{mesh_name.replace('.obj', '_ignored_segments.npz')}",
+                                          allow_pickle=True)
+                    mesh_utils.smpl_result_to_obj(smpl_result, f"{cfg['save_path']}/{mesh_name.replace('.obj', '_ignored_segments.obj')}", has_faces=False)
 ## TODO: Check all the results (6*5=30) fits

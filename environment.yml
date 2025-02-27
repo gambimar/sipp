@@ -1,18 +1,18 @@
-name: osim
+name: osim_10
 channels:
   - conda-forge
 dependencies:
-  - python=3.11
-  - jupyter
-  - opensim-org::opensim
-  - pandas
-  - scipy
-  - pytorch==1.13.1
-  - openpyxl
-  - tqdm
-  - pyyaml
-  - termcolor
-  - ninja
-  - trimesh
   - plotly
-prefix: /opt/homebrew/Caskroom/miniforge/base/envs/osim
+  - tqdm
+  - python=3.10
+  - opensim=4.5.1
+  - jupyter
+  - scipy
+  - pip
+  - scikit-learn
+  - pytorch=1.13.1
+  - jupyterlab
+  - pandas
+  - matplotlib
+  - trimesh
+prefix: /opt/homebrew/Caskroom/miniforge/base/envs/osim_10
