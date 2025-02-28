@@ -5,7 +5,10 @@ Repository for C01 - Phase I - WP4: MRI Validation of MSK model personalization
 ## Getting started
 
 1. Clone this repository
-2. Get our fork of SMPL-Fitting from [here](github)
+2. Install requirements
+2. Get our fork of SMPL-Fitting from [here](github), follow the instructions to install it.
+3. Get SKEL from [here](github) and follow the instructions to install it - the dependencies are already included in our environment file.
+4. Get HIT from [here](github) and follow the instructions to install it. You will need to create a new environment, because the dependencies are incompatible with the the main environment file.
 
 ## Add your files
 
