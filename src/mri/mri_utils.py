@@ -113,5 +113,25 @@ def apply_deformation_characteristics(deformation_characteristics, participants=
         all_scans[participant] = scan_list
     return all_scans
 
+def correct_participant_6_movements(concat_array):
+    cfg = {"bound_layer":576, "r_ver":8, "r_hor":1, "l_ver":8, "l_hor":8, "midpoint":320}
+    # Correct left foot
+    concat_array[:cfg["bound_layer"],
+                 :-cfg["l_ver"],
+                 cfg["l_hor"]:cfg["midpoint"]] = concat_array[:cfg["bound_layer"],
+                                                                cfg["l_ver"]:,
+                                                                :cfg["midpoint"]-cfg["l_hor"]]
+    # Correct right foot
+    concat_array[:cfg["bound_layer"],
+                 :-cfg["r_ver"],
+                 cfg["midpoint"]+cfg["r_hor"]:] = concat_array[:cfg["bound_layer"],
+                                                                cfg["r_ver"]:,
+                                                                cfg["midpoint"]:-cfg["r_hor"]]
+    return concat_array
+                                                              
+
+
+
+
 get_data_path = lambda participant, scan: f"data/P0{participant}/MRI/nifti/{scan}_fl3d_t1_setandgo_cor.nii"
 get_default_result_path = lambda participant: f"results/P0{participant}/MRI/nifti/"
