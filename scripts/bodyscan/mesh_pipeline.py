@@ -78,8 +78,9 @@ if __name__ == "__main__":
             import fit_vertices
             from utils import (load_config, process_body_model_fit_verts,
                                 process_dataset_name, save_configs, set_seed,
-                               initialize_fit_verts_loss_weights,load_loss_weights_config)
-            for mesh_name in [skel_layer_name, musc_layer_name, skin_layer_name, body_scan_name, face_scan_name, scnc_layer_name]:
+                               initialize_fit_verts_loss_weights,load_loss_weights_config,
+                               initialize_fit_bm_loss_weights)
+            for mesh_name in [body_scan_name]:#skel_layer_name, musc_layer_name, skin_layer_name, body_scan_name, face_scan_name, scnc_layer_name]:
                 if mesh_name.startswith("final_fit_invtrans"):
                     mesh_name = mesh_name[-12:]
                     landmarks_path = f"{result_path}/transformed/{mesh_name[:-4]}_landmarks.json"
@@ -122,13 +123,19 @@ if __name__ == "__main__":
                     print(pid,': 2. Fit; ignoring segments that usually have artifacts for the', ssm, 'model')
                     # Create a version of the mesh where the ignored segments are removed
                     curr_scan = mesh_utils.load_trimesh_from_file(mesh_path)
-                    new_res_path = mesh_utils.create_mesh_without_ignored_segments(curr_scan, smpl_result,
-                                                                    ignore_segments, vertex_segmentation, res_path)
-                    # Update the config file
                     cfg['ignore_segments'] = ignore_segments if not mesh_name.startswith("scaneca") else ignore_segments_scaneca
+                    new_res_path = mesh_utils.create_mesh_without_ignored_segments(curr_scan, smpl_result,
+                                                                    cfg['ignore_segments'], vertex_segmentation, res_path)
+                    # Update the config file
                     cfg['scan_path'] = new_res_path
                     scan_info["fit_type"] = "loose" if ssm == "smpl" else "loose_skel"
                     cfg['body_model'] = ssm
+                    if ssm == "skel":
+                        cfg['reference_smpl'] = f"{cfg['save_path']}/{mesh_name[:-4]}_ignored_segments.obj"#
+                        cfg['loss_weights'] = initialize_fit_bm_loss_weights(
+                                                        load_loss_weights_config(which_strategy="fit_bm_loss_weight_strategy",
+                                                        which_option="skel",
+                                                        path="SMPL-Fitting/configs/loss_weight_configs.yaml"))
                     cfg['save_path'] = mesh_utils.create_results_dir(scan_info)
                     # Fit the model again
                     fit_body_model.fit_body_model_onto_scan(cfg)
@@ -137,7 +144,8 @@ if __name__ == "__main__":
                     mesh_utils.smpl_result_to_obj(smpl_result, new_res_path.replace(".npz", ".obj").replace("initial","loose"), has_faces=False)
                     save_configs(cfg)
 
-                    ## 3. Fit - Thight wrap
+                for ssm in ["smpl"]: #, "skel"]: # Tight SKEL fit is identical to SMPL
+                    ## 3. Fit - Tight wrap
                     print(pid,': 3. Fit; tight fit without')
                     scan_info["fit_type"] = "tight" if ssm == "smpl" else "tight_skel"
                     cfg_loss_weights = load_loss_weights_config(
@@ -158,4 +166,5 @@ if __name__ == "__main__":
                     smpl_result = np.load(f"{cfg['save_path']}/{mesh_name.replace('.obj', '_ignored_segments.npz')}",
                                           allow_pickle=True)
                     mesh_utils.smpl_result_to_obj(smpl_result, f"{cfg['save_path']}/{mesh_name.replace('.obj', '_ignored_segments.obj')}", has_faces=False)
+                    asd =ada
 ## TODO: Check all the results (6*5=30) fits
