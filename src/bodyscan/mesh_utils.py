@@ -3,10 +3,12 @@ import numpy as np
 import src.bodyscan.mesh_utils as mesh_utils
 import sys
 sys.path.append("SMPL-Fitting")
+sys.path.append("SKEL")
 from utils import (load_loss_weights_config, initialize_fit_bm_loss_weights, process_body_model_path, process_default_dtype, 
                    process_landmarks, process_visualize_steps, save_configs)
 import os
 import torch
+from skel.skel_model import SKEL
 
 def load_trimesh_from_file(file_path):
     with open(file_path, 'r'):
@@ -161,7 +163,6 @@ def save_np_res_as_pkl(np_res_path):
     for k in np_res.keys():
         if k in ['body_model','name']:
             continue
-        print(np_res[k].shape, k)
         if k == "shape":
             res_as_dict["betas"] = np_res[k].T.squeeze()
         elif k == "pose":
@@ -170,3 +171,30 @@ def save_np_res_as_pkl(np_res_path):
             res_as_dict[k] = np_res[k]
     with open(pkl_res_path, 'wb') as f:
         pickle.dump(res_as_dict, f)
+
+def get_skel_output(npz_file, gender):
+    data = np.load(npz_file, allow_pickle=True)
+    pose = torch.tensor(data['pose'])
+    betas = torch.tensor(data['shape'])
+    trans = torch.tensor(data['trans']).unsqueeze(0)
+    # Vis skel fit when these are coming in
+    model = SKEL(gender)
+    joint_idx_fixed_beta = [0, 5, 10, 13, 18, 23] # Pytorch 1.x monkey patch
+    model.register_buffer('joint_idx_fixed_beta', torch.LongTensor(joint_idx_fixed_beta)) # Pytorch 1.x monkey patch
+    output = model(poses=pose,
+                   betas=betas,
+                   trans=torch.zeros(1,3).to("cuda" if torch.cuda.is_available() else "cpu"))
+    skin_verts = (output['skin_verts'] * data['scale']) + trans
+    joints = (output['joints'] * data['scale']) + trans
+    skel_verts = (output['skel_verts'] * data['scale']) + trans
+    return {
+        'skin_verts': skin_verts.squeeze(0).detach().cpu().numpy(),
+        'joints': joints.squeeze(0).detach().cpu().numpy(),
+        'skel_verts': skel_verts.squeeze(0).detach().cpu().numpy(),
+        'skin_faces': model.skin_f,
+        'skel_faces': model.skel_f,
+        'pose': pose,
+        'betas': betas,
+        'trans': trans,
+        'scale': data['scale'],
+    }
