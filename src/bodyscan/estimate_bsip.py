@@ -11,13 +11,20 @@
 #   2.3 Reposed to wide stance T (Skin)
 #   2.4 Scaneca scan - Scaneca Pose (Scan)
 # 3. InsideHumans Model
-#   3.1 Reposed to wide stance T (Skin)
+#   3.1 Reposed to wide stance T (Skin) - fat layer only
+#   3.2 Using SKEL's skeleton
 # 4. Meta models (not in this file - we could weighted average multiple models)
 ### These models x2 - on the loose and on the tight hull
 
 import argparse
 import os
+os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 import pandas as pd
+import numpy as np
+from src.bodyscan import mesh_utils
+from src.bodyscan import bsip_utils
+import trimesh
+
 
 def main():
     # Parse input arguments
@@ -26,7 +33,7 @@ def main():
     parser.add_argument('--hull', type=str, default='loose', choices=['loose', 'tight'],
                         help='Whether to use the loose or tight hull for BSIP estimation')
     # Pipeline - HIT, SMPL, InsideHumans
-    parser.add_argument('--pipeline', type=str, default='HIT', choices=['HIT', 'SMPL', 'InsideHumans'],
+    parser.add_argument('--pipeline', type=str, default='SMPL', choices=['HIT', 'SMPL', 'InsideHumans'],
                         help='Which pipeline to use for BSIP estimation')
     # Input path to the body scan data
     parser.add_argument('--input_path', type=str, default='results/P01/bodyhull',
@@ -40,6 +47,14 @@ def main():
     # Exact body mass
     parser.add_argument('--mass', type=float, default=70.0,
                         help='Exact body mass of the participant')
+    # gender
+    parser.add_argument('--gender', type=str, default='female', choices=['male','female'])
+    # Use the SKEL skeleton for any pipeline
+    parser.add_argument('--use_skel', type=bool, default=False,
+                        help='Whether to include the SKEL skeleton for the BSIP estimation')
+    # Debug flag
+    parser.add_argument('--debug', type=bool, default=False,
+                        help='Whether to print debug information')
 
     args = parser.parse_args()
     os.makedirs(args.output_path, exist_ok=True)
@@ -67,7 +82,76 @@ def main():
         'skin': 'skin_layer'
     }
     smpl_fit = np.load(os.path.join(args.input_path, 'smpl_fit', args.model, 'loose', f'{scan_names[args.model]}_ignored_segments.npz'), allow_pickle=True)
-    skel_fit = np.load(os.path.join(args.input_path, 'skel_fit', args.model, 'loose', f'{scan_names[args.model]}_ignored_segments.npz'), allow_pickle=True)
+    #skel_fit = np.load(os.path.join(args.input_path, 'skel_fit', args.model, 'loose_skel', f'{scan_names[args.model]}_ignored_segments.npz'), allow_pickle=True)
+    skel_result = mesh_utils.get_skel_output(os.path.join(args.input_path, 'smpl_fit', args.model, 'loose_skel', f'{scan_names[args.model]}_ignored_segments.npz'), args.gender)
+
+    if args.hull == 'tight':
+        smpl_fit_tight = np.load(os.path.join(args.input_path, 'smpl_fit', args.model, 'tight', f'{scan_names[args.model]}_ignored_segments.npz'), allow_pickle=True)
+
+    if args.pipeline in ['SMPL', "HIT"]:
+        meshes_of_interest = {
+            "all": [trimesh.Trimesh(vertices=smpl_fit['vertices'], faces=skel_result['skin_faces'])],
+        }
+        if args.pipeline == 'HIT':
+            meshes_of_interest['AT'] = mesh_utils.load_trimesh_from_file(
+                os.path.join(args.input_path, "hit_prediction", args.model, f"hit_{args.gender}_best", "AT_mesh.obj"))
+            meshes_of_interest['BT'] = mesh_utils.load_trimesh_from_file(
+                os.path.join(args.input_path, "hit_prediction", args.model, f"hit_{args.gender}_best", "BT_mesh.obj"))
+            meshes_of_interest['LT'] = mesh_utils.load_trimesh_from_file(
+                os.path.join(args.input_path, "hit_prediction", args.model, f"hit_{args.gender}_best", "LT_mesh.obj"))
+
+    elif args.pipeline == 'InsideHumans':
+        meshes_of_interest = {
+            "skin": [mesh_utils.load_trimesh_from_file(os.path.join(args.input_path, 'smpl_fit', 'skin', 'loose', 'skin_layer_ignored_segments.obj'))],
+            "musc": [mesh_utils.load_trimesh_from_file(os.path.join(args.input_path, 'smpl_fit', 'musc', 'loose', 'musc_layer_ignored_segments.obj'))],
+        }
+    else:
+        raise ValueError(f"Pipeline {args.pipeline} does not exist. Choices: ['SMPL', 'HIT', 'InsideHumans']")
+
+    if args.use_skel:
+        meshes_of_interest['skel'] = [trimesh.Trimesh(vertices=skel_result['skel_verts'], faces=skel_result['skel_faces'])]
+
+    # === Deform meshes to the tight hull ===
+    if args.hull == 'tight':
+        if args.pipeline == "InsideHumans":
+            meshes_of_interest = { # Tight fits are already known
+                "skin": [mesh_utils.load_trimesh_from_file(os.path.join(args.input_path, 'smpl_fit', 'skin', 'tight', 'skin_layer_ignored_segments.obj'))],
+                "musc": [mesh_utils.load_trimesh_from_file(os.path.join(args.input_path, 'smpl_fit', 'musc', 'tight', 'musc_layer_ignored_segments.obj'))],
+            }
+        if args.pipeline in ['SMPL', 'HIT']:
+            meshes_of_interest['all_tight'] = [trimesh.Trimesh(vertices=smpl_fit_tight['vertices'], faces=skel_result['skin_faces'])]
+            if args.pipeline == 'HIT':
+                raise NotImplementedError("Reshaping for HIT models is not implemented yet")
+            if args.use_skel:
+                raise NotImplementedError("Reshaping with SKEL is not implemented yet")
+
+    # === Cut meshes ===
+    result_meshes = {}
+    for mesh_name, mesh in meshes_of_interest.items():
+        result_meshes[mesh_name] = {}
+        for body in bsip_utils.all_bodies:
+            result_meshes[mesh_name][body] = bsip_utils.cut_segment(body, mesh, skel_result['joints'])
+
+    # === Debug report ===
+    if args.debug:
+        print("Meshes of result:", result_meshes.keys(), "MOI:", meshes_of_interest.keys())
+        for mesh_name, mesh in result_meshes.items():
+            print(f"Mesh name: {mesh_name}")
+            original_volume = np.sum([part.volume for part in meshes_of_interest[mesh_name]])
+            new_volume = 0
+            for body, cut_mesh in mesh.items():
+                for part in cut_mesh:
+                    new_volume += part.volume
+            print(
+                f"Volume: (new | old | diff) [L]: {new_volume * 1e3:.2f} | {original_volume * 1e3:.2f} | {(new_volume - original_volume) * 1e3:.2f}")
+            # Save all body parts as .obj in results/tmp
+            os.makedirs('results/tmp', exist_ok=True)
+            for body, cut_mesh in mesh.items():
+                scene = trimesh.Scene(cut_mesh)
+                try:
+                    scene.export(f"results/tmp/{mesh_name}_{body}.obj")
+                except:
+                    print(f"Could not save {mesh_name}_{body}.obj")
 
 
 
