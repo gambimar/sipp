@@ -80,7 +80,7 @@ if __name__ == "__main__":
                                 process_dataset_name, save_configs, set_seed,
                                initialize_fit_verts_loss_weights,load_loss_weights_config,
                                initialize_fit_bm_loss_weights)
-            for mesh_name in [body_scan_name]:#skel_layer_name, musc_layer_name, skin_layer_name, body_scan_name, face_scan_name, scnc_layer_name]:
+            for mesh_name in [skel_layer_name, musc_layer_name, skin_layer_name, body_scan_name, face_scan_name, scnc_layer_name]:
                 if mesh_name.startswith("final_fit_invtrans"):
                     mesh_name = mesh_name[-12:]
                     landmarks_path = f"{result_path}/transformed/{mesh_name[:-4]}_landmarks.json"
@@ -166,5 +166,4 @@ if __name__ == "__main__":
                     smpl_result = np.load(f"{cfg['save_path']}/{mesh_name.replace('.obj', '_ignored_segments.npz')}",
                                           allow_pickle=True)
                     mesh_utils.smpl_result_to_obj(smpl_result, f"{cfg['save_path']}/{mesh_name.replace('.obj', '_ignored_segments.obj')}", has_faces=False)
-                    asd =ada
 ## TODO: Check all the results (6*5=30) fits

@@ -4,8 +4,7 @@ import src.bodyscan.mesh_utils as mesh_utils
 import sys
 sys.path.append("SMPL-Fitting")
 sys.path.append("SKEL")
-from utils import (load_loss_weights_config, initialize_fit_bm_loss_weights, process_body_model_path, process_default_dtype, 
-                   process_landmarks, process_visualize_steps, save_configs)
+
 import os
 import torch
 from skel.skel_model import SKEL
@@ -61,6 +60,9 @@ def process_cfg_body_model(cfg, scan_info, mesh_path, landmarks_path):
     """
         Process the configuration file for the SMPL fitting. In fit_body_model.py, this gets parsed from the command line arguments.
     """
+    from utils import (load_loss_weights_config, initialize_fit_bm_loss_weights, process_body_model_path,
+                       process_default_dtype,
+                       process_landmarks, process_visualize_steps, save_configs) # This should be in another file because the import break subprocessing
     cfg_optimization = cfg["fit_body_model_optimization"]
     cfg_datasets = cfg["datasets"]
     cfg_paths = cfg["paths"]
@@ -198,3 +200,13 @@ def get_skel_output(npz_file, gender):
         'trans': trans,
         'scale': data['scale'],
     }
+
+def adjust_hit_scaling(hit_path, smpl_fit):
+    # HIT does not make use of David Boja's SMPL Fitting "scale" parameter, so we need to adjust the scaling
+    for output in ['AT', 'BT', 'LT']:
+        mesh = load_trimesh_from_file(os.path.join(hit_path, f"{output}_mesh.obj"))
+        # Tranlate mesh to the origin and then apply the scaling
+        mesh.vertices -= smpl_fit['trans']
+        mesh.vertices *= smpl_fit['scale']
+        mesh.vertices += smpl_fit['trans']
+        save_trimesh_to_obj(mesh, os.path.join(hit_path, f"{output}_mesh_adjusted.obj"))
