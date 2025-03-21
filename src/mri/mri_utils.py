@@ -128,10 +128,6 @@ def correct_participant_6_movements(concat_array):
                                                                 cfg["r_ver"]:,
                                                                 cfg["midpoint"]:-cfg["r_hor"]]
     return concat_array
-                                                              
-
-
-
 
 get_data_path = lambda participant, scan: f"data/P0{participant}/MRI/nifti/{scan}_fl3d_t1_setandgo_cor.nii"
 get_default_result_path = lambda participant: f"results/P0{participant}/MRI/nifti/"

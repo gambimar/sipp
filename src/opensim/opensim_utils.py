@@ -4,6 +4,7 @@ This file contains utility functions for OpenSim models. As OpenSim is incompati
 import opensim as osim
 import numpy as np
 import pandas as pd
+import os
 
 def get_model(model_file):
     mod = osim.Model(model_file)
@@ -105,10 +106,138 @@ def set_opensim_bsip_parameters(model, bodies_df):
     bodies_df = bodies_df[~bodies_df['name'].isin(['HAT', 'foot_l', 'foot_r'])]
     for idx, body in bodies_df.iterrows():
         seg = model.getBodySet().get(body['name'])
-        seg.setMass(body['mass'])
+        seg.setMass(float(body['mass']))
         seg.setMassCenter(osim.Vec3(body['mass_center'][0], body['mass_center'][1], body['mass_center'][2]))
         seg.setInertia(osim.Inertia(body['inertia'][0,0], body['inertia'][1,1], body['inertia'][2,2], body['inertia'][0,1], body['inertia'][0,2], body['inertia'][1,2]))
     return model
 
 def save_opensim_model(model, file_name):
     model.printToXML(file_name)
+
+
+def concat_addbiomechanics_data(ik_data_path):
+    # Find all mot files in the folder
+    mot_files = sorted([f for f in os.listdir(ik_data_path) if f.endswith('.mot')])
+    # Check unique trials
+    trials = set([f.split('_')[0] for f in mot_files])
+    for t in trials:
+        # Skip trials without _, as they are not produced by addbiomechanics
+        if t.find('.mot') > 0:
+            continue
+        # Find all files for the trial
+        trial_files = [f for f in mot_files if f.startswith(t) and '_segment' in f]
+        # Sort the trial files by the segment number as int
+        trial_files = sorted(trial_files, key=lambda x: int(x.split('_')[-2].split('_')[0]))
+
+        # Load all trials
+        df = pd.concat([pd.read_csv(os.path.join(ik_data_path, f), sep='\t', skiprows=10) for f in trial_files])
+        nRows = df.shape[0]
+        # Create a new file, with the same name as the set
+        with open(os.path.join(ik_data_path, f"{t}.mot"), 'w', newline='\n') as f:
+            with open(os.path.join(ik_data_path, trial_files[0]), 'r') as f0:
+                # Write the first two lines from the original file
+                for i in range(2):
+                    f.write(f0.readline())
+                f0.readline() # Skip the third line
+                f.write(f"nRows={nRows}\n")
+                for i in range(7):
+                    f.write(f0.readline())
+            df.to_csv(f, sep='\t', index=False)
+
+
+
+def filter_data(data_path, lowpass_f, lowpass_order, mode='ik', return_df=False):
+    from scipy.signal import butter, sosfiltfilt
+    if mode == 'ik':
+        skiprows = 10
+    elif mode == 'grf':
+        skiprows = 5
+    else:
+        raise ValueError('Filter mode should be either marker or grf')
+
+    data = pd.read_csv(data_path, sep='\t', skiprows=skiprows)
+    # Lowpass filter the data
+    def butter_lowpass_filter(data, cutoff, fs, order):
+        nyquist = 0.5 * fs
+        normal_cutoff = cutoff / nyquist
+        sos = butter(order, normal_cutoff, btype='low', analog=False, output='sos')
+        y = sosfiltfilt(sos, data)
+        return y
+
+    for col in data.columns:
+        if col in ['time', 'Time', 'Frame#']:
+            continue # Do not filter time, looking at you opensim
+        data[col] = butter_lowpass_filter(data[col], lowpass_f, 100, lowpass_order)
+        data[col] = data[col].apply(lambda x: round(x, 8))
+
+    # Testwise: Set the mean of the force plate data to 0 - it is constantly biased somehow...
+    if mode == 'grf':
+        for col in data.columns:
+            if col in ['ground_force_vx', 'ground_force_vz', '1_ground_force_vx', '1_ground_force_vz']:
+                print('Mean of', col, 'is', data[col].mean())
+
+    with open(data_path.replace('.mot', '_filtered.mot'), 'w', newline='\n') as f:
+        with open(data_path, 'r') as f0:
+            for i in range(skiprows+1):
+                f.write(f0.readline())
+        data_arr = data.to_numpy()
+        # Somehow, thats the weird thing: the data is not written correctly if we use pd.to_csv
+        # But literally 10 lines above this it works fine. I have no idea why
+        np.savetxt(f, data_arr, delimiter='\t', newline='\n', fmt='%.8f')
+        f.flush()
+
+    if return_df:
+        return data_path.replace('.mot', '_filtered.mot'), data
+    return data_path.replace('.mot', '_filtered.mot')
+
+def hull_bsip_to_opensim(hull_bsip, model,
+                         arms_from_hull=False,
+                         extra_shoe_weight=0):
+
+    # Check if lumbar_body is in the hull_bsip.names and replace it with "torso"
+    if 'lumbar_body' in hull_bsip['segment'].values:
+        hull_bsip.loc[hull_bsip['segment'] == 'lumbar_body', 'segment'] = 'torso'
+
+    hull_bsip.rename(columns={'segment': 'name'}, inplace=True)
+
+    # Define arms segments
+    arm_segments = ['humerus_r', 'humerus_l', 'radius_r', 'radius_l', 'ulna_r', 'ulna_l', 'hand_r', 'hand_l']
+
+    model_bsip = get_bsip_dataframe(model)
+    bodymass = hull_bsip['mass'].sum()
+
+    if not arms_from_hull:
+        # Use the original BSIP of the model for the arms
+        # Remove the arms from the hull_bsip
+        hull_bsip = hull_bsip[~hull_bsip['name'].isin(arm_segments)]
+        # Add the arms from the model
+        hull_bsip = pd.concat([hull_bsip, model_bsip[model_bsip['name'].isin(arm_segments)]])
+
+        # check the total mass and adjust mass and inertia parameters
+        bodymass_new = hull_bsip['mass'].sum()
+        hull_bsip['mass'] = hull_bsip['mass'] / bodymass_new * bodymass
+        hull_bsip['inertia'] = hull_bsip['inertia'].apply(lambda x: x / bodymass_new * bodymass)
+
+    if extra_shoe_weight > 0:
+        # Add the weight of the shoes to the feet
+        feet = ['calcn_r', 'calcn_l', 'talus_r', 'talus_l', 'toes_r', 'toes_l']
+
+        starting_foot_mass = hull_bsip[hull_bsip['name'].isin(feet)]['mass'].sum()
+        scale_factor = (extra_shoe_weight + starting_foot_mass) / starting_foot_mass
+
+        hull_bsip.loc[hull_bsip['name'].isin(feet), 'mass'] *= scale_factor
+        hull_bsip.loc[hull_bsip['name'].isin(feet), 'inertia'] = hull_bsip.loc[hull_bsip['name'].isin(feet), 'inertia'].apply(lambda x: x * scale_factor)
+
+    # Set all undefined bisp values to (almost) 0 - patella (not segmented), radius (same body as ulna), talus (same body as calcn)
+    missing_bsip = model_bsip[~model_bsip['name'].isin(hull_bsip['name'])]
+    missing_bsip.loc[:,'mass'] = 1e-5
+    missing_bsip.loc[:,'mass_center'] = missing_bsip['mass_center'].apply(lambda x: np.array([1e-5, 1e-5, 1e-5]))
+    missing_bsip.loc[:,'inertia'] = missing_bsip['inertia'].apply(lambda x: np.eye(3) * 1e-5)
+    hull_bsip = pd.concat([hull_bsip, missing_bsip])
+
+    return hull_bsip, set_opensim_bsip_parameters(model, hull_bsip)
+
+
+
+
+

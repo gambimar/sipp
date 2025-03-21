@@ -21,9 +21,9 @@ import os
 os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 import pandas as pd
 import numpy as np
-from src.bodyscan import mesh_utils
-from src.bodyscan import bsip_utils
+from src.bodyscan import mesh_utils, bsip_utils, segment, orientations
 import trimesh
+from SKEL.skel import kin_skel
 
 
 def main():
@@ -36,10 +36,10 @@ def main():
     parser.add_argument('--pipeline', type=str, default='SMPL', choices=['HIT', 'SMPL', 'InsideHumans'],
                         help='Which pipeline to use for BSIP estimation')
     # Input path to the body scan data
-    parser.add_argument('--input_path', type=str, default='results/P01/bodyhull',
+    parser.add_argument('--input_path', type=str, default='results/P06/bodyhull',
                         help='Path to the body scan data')
     # Which model to use for the BSIP estimation
-    parser.add_argument('--model', type=str, default='body', choices=['body', 'face', 'skin', 'scan'],
+    parser.add_argument('--model', type=str, default='skin', choices=['body', 'face', 'skin', 'scan'],
                         help='Which model to use for the BSIP estimation')
     # Output path to save the estimated BSIPs as a pandas dataframe
     parser.add_argument('--output_path', type=str, default='results/P01/bodyhull/bsip',
@@ -93,13 +93,13 @@ def main():
             "all": [trimesh.Trimesh(vertices=smpl_fit['vertices'], faces=skel_result['skin_faces'])],
         }
         if args.pipeline == 'HIT':
-            meshes_of_interest['AT'] = mesh_utils.load_trimesh_from_file(
-                os.path.join(args.input_path, "hit_prediction", args.model, f"hit_{args.gender}_best", "AT_mesh.obj"))
-            meshes_of_interest['BT'] = mesh_utils.load_trimesh_from_file(
-                os.path.join(args.input_path, "hit_prediction", args.model, f"hit_{args.gender}_best", "BT_mesh.obj"))
-            meshes_of_interest['LT'] = mesh_utils.load_trimesh_from_file(
-                os.path.join(args.input_path, "hit_prediction", args.model, f"hit_{args.gender}_best", "LT_mesh.obj"))
-
+            mesh_utils.adjust_hit_scaling(os.path.join(args.input_path, "hit_prediction", args.model, f"hit_{args.gender}_best"), smpl_fit)
+            meshes_of_interest['AT'] = [mesh_utils.load_trimesh_from_file(
+                os.path.join(args.input_path, "hit_prediction", args.model, f"hit_{args.gender}_best", "AT_mesh.obj"))]
+            meshes_of_interest['BT'] = [mesh_utils.load_trimesh_from_file(
+                os.path.join(args.input_path, "hit_prediction", args.model, f"hit_{args.gender}_best", "BT_mesh.obj"))]
+            meshes_of_interest['LT'] = [mesh_utils.load_trimesh_from_file(
+                os.path.join(args.input_path, "hit_prediction", args.model, f"hit_{args.gender}_best", "LT_mesh.obj"))]
     elif args.pipeline == 'InsideHumans':
         meshes_of_interest = {
             "skin": [mesh_utils.load_trimesh_from_file(os.path.join(args.input_path, 'smpl_fit', 'skin', 'loose', 'skin_layer_ignored_segments.obj'))],
@@ -111,7 +111,7 @@ def main():
     if args.use_skel:
         meshes_of_interest['skel'] = [trimesh.Trimesh(vertices=skel_result['skel_verts'], faces=skel_result['skel_faces'])]
 
-    # === Deform meshes to the tight hull ===
+    # === Deform meshes to the tight hull (if needed) ===
     if args.hull == 'tight':
         if args.pipeline == "InsideHumans":
             meshes_of_interest = { # Tight fits are already known
@@ -119,7 +119,7 @@ def main():
                 "musc": [mesh_utils.load_trimesh_from_file(os.path.join(args.input_path, 'smpl_fit', 'musc', 'tight', 'musc_layer_ignored_segments.obj'))],
             }
         if args.pipeline in ['SMPL', 'HIT']:
-            meshes_of_interest['all_tight'] = [trimesh.Trimesh(vertices=smpl_fit_tight['vertices'], faces=skel_result['skin_faces'])]
+            meshes_of_interest['all'] = [trimesh.Trimesh(vertices=smpl_fit_tight['vertices'], faces=skel_result['skin_faces'])]
             if args.pipeline == 'HIT':
                 raise NotImplementedError("Reshaping for HIT models is not implemented yet")
             if args.use_skel:
@@ -129,29 +129,48 @@ def main():
     result_meshes = {}
     for mesh_name, mesh in meshes_of_interest.items():
         result_meshes[mesh_name] = {}
-        for body in bsip_utils.all_bodies:
-            result_meshes[mesh_name][body] = bsip_utils.cut_segment(body, mesh, skel_result['joints'])
+        for body in segment.all_bodies:
+            result_meshes[mesh_name][body] = segment.cut_segment(body, mesh, skel_result['joints'])
 
     # === Debug report ===
     if args.debug:
+        print(args.debug)
         print("Meshes of result:", result_meshes.keys(), "MOI:", meshes_of_interest.keys())
         for mesh_name, mesh in result_meshes.items():
             print(f"Mesh name: {mesh_name}")
             original_volume = np.sum([part.volume for part in meshes_of_interest[mesh_name]])
             new_volume = 0
             for body, cut_mesh in mesh.items():
-                for part in cut_mesh:
-                    new_volume += part.volume
+                if cut_mesh:
+                    new_volume += cut_mesh.volume
             print(
                 f"Volume: (new | old | diff) [L]: {new_volume * 1e3:.2f} | {original_volume * 1e3:.2f} | {(new_volume - original_volume) * 1e3:.2f}")
             # Save all body parts as .obj in results/tmp
             os.makedirs('results/tmp', exist_ok=True)
             for body, cut_mesh in mesh.items():
+                if not cut_mesh:
+                    continue
                 scene = trimesh.Scene(cut_mesh)
                 try:
                     scene.export(f"results/tmp/{mesh_name}_{body}.obj")
                 except:
                     print(f"Could not save {mesh_name}_{body}.obj")
+
+    # Get orientations per body part
+    body_orientations = orientations.get_bone_orientation(skel_result['pose'])
+
+    # Estimate the BSIPs
+    bsips = bsip_utils.estimate_bsip(result_meshes, body_orientations, skel_result['joints'], args)
+
+    # Adjust for bodymass
+    total_mass = np.sum(bsips['mass'])
+    print(f"Total mass: {total_mass}, Adjusting to {args.mass}")
+    bsips['mass'] = bsips['mass'] / total_mass * args.mass
+    bsips['inertia'] = bsips['inertia'].apply(lambda x: x / total_mass * args.mass)
+
+    # Save the BSIPs as a pandas dataframe
+    bsips.to_pickle(os.path.join(args.output_path, f'{args.pipeline}_{args.model}_{args.hull}{"_w_skel" if args.use_skel else ""}.pkl'))
+    print(f"BSIPs estimated and saved to ",{os.path.join(args.output_path, f'{args.pipeline}_{args.model}_{args.hull}{"_w_skel" if args.use_skel else ""}.pkl')})
 
 
 
@@ -172,7 +191,5 @@ def main():
         - Get bsip (this file)
 """
 
-
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

@@ -28,7 +28,7 @@ def c3d_to_trc(trial, output_name):
 
     # Get a array that is (n_frames, coords)
     # Write header 
-    full_array = nimble_dict_to_arr(trial)
+    full_array, column_names = nimble_dict_to_arr(trial)
     full_array[:,2::3] *= -1 # Invert X and Z
     full_array[:,4::3] *= -1
     with open(output_name, 'w', newline="\n") as f:
@@ -36,7 +36,8 @@ def c3d_to_trc(trial, output_name):
         f.write("DataRate\tCameraRate\tNumFrames\tNumMarkers\tUnits\tOrigDataRate\tOrigDataStartFrame\tOrigNumFrames\n")
         f.write(f"{trial.framesPerSecond}\t{trial.framesPerSecond}\t{full_array.shape[0]}\t{full_array.shape[1]//3}\tm\t{trial.framesPerSecond}\t{0}\t{full_array.shape[0]}\n")
         f.write("Frame#\tTime\t")
-        for marker_name in trial.markers:
+
+        for marker_name in column_names:
             f.write(f"{marker_name}\t\t\t")
         f.write("\n")
         f.write("\t\t")
@@ -54,7 +55,7 @@ def nimble_dict_to_arr(trial):
     df =  pd.DataFrame(trial.markerTimesteps)
     # Find which number comes after 1 & 2
     #max_len = max(df.dropna().applymap(lambda x: len(x) if isinstance(x, np.ndarray) else 0).values.flatten())    
-    df_filled = df.applymap(lambda x: x if isinstance(x, np.ndarray) else np.full(3, np.nan)) # nan to [nan, nan, nan]
+    df_filled = df.applymap(lambda x: x if isinstance(x, np.ndarray) else np.full(3, 0)) # nan to [0,0,0]
 
     # Stack using list comprehension - cause pandas is salty object handling
     rows_stacked = [np.stack(row) for row in df_filled.values]
@@ -63,7 +64,7 @@ def nimble_dict_to_arr(trial):
     # Reshape to 2D
     n_frames, n_markers, n_coords = array_3d.shape
     full_array = array_3d.reshape(n_frames, n_markers*n_coords)
-    return np.hstack([np.arange(n_frames)[:, np.newaxis]+1,np.array(trial.timestamps)[:, np.newaxis], full_array])
+    return np.hstack([np.arange(n_frames)[:, np.newaxis]+1,np.array(trial.timestamps)[:, np.newaxis], full_array]), df_filled.columns
     
 def c3d_to_mot(trial, output_name):
     assert output_name.endswith('.mot'), 'The output file should be a .mot file'
