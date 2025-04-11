@@ -8,6 +8,7 @@ sys.path.append("SKEL")
 import os
 import torch
 from skel.skel_model import SKEL
+from scipy.interpolate import RBFInterpolator
 
 def load_trimesh_from_file(file_path):
     with open(file_path, 'r'):
@@ -210,3 +211,110 @@ def adjust_hit_scaling(hit_path, smpl_fit):
         mesh.vertices *= smpl_fit['scale']
         mesh.vertices += smpl_fit['trans']
         save_trimesh_to_obj(mesh, os.path.join(hit_path, f"{output}_mesh_adjusted.obj"))
+
+def deform_mesh(input_vertices, target_vertices, query_points, kernel = 'thin_plate_spline', epsilon=30.0, neighbors=None, smoothing=1e-5):
+    """
+        Deform query points, that are in the input mesh deformation space, to the target mesh deformation space.
+
+        Parameters:
+            - input_points: (N, 3) numpy array of known 3D input points
+            - target_points: (N, 3) numpy array of known corresponding target 3D points
+            - query_points: (M, 3) numpy array of points where interpolation is required
+            - kernel: RBF kernel type (default: 'multiquadric')
+            - epsilon: Shape parameter for the RBF kernel (default: 1.0)
+            - neighbors: Number of nearest neighbors to use for interpolation (default: 10)
+            - smoothing: Smoothing factor (default: 0.0)
+        
+        Returns:
+            - deformed_points: (M, 3) numpy array of deformed points
+    """
+
+    # Get deformation field
+    deformation = target_vertices - input_vertices
+
+    # Radial basis function (RBF) kernel
+    rbf_model = RBFInterpolator(input_vertices, deformation, kernel=kernel, epsilon=epsilon, neighbors=neighbors, smoothing=smoothing)
+    query_deformations = rbf_model(query_points)
+    return query_points + query_deformations
+
+
+def project_mesh_to_deformed(start_mesh, target_points, query_mesh):
+    """
+        Function to get the projection of the target points on the start mesh.
+        This is used in MRI processing to get the barycentric coordinates of the tight fit, 
+        which are then applied to the rigged loose fit.
+    """
+    closest_points, _, triangle_ids = start_mesh.nearest.on_surface(target_points)
+    tris = start_mesh.triangles[triangle_ids]   # shape: (N, 3, 3)
+    
+    # Edge vectors (using first vertex as origin)
+    u_vec = tris[:, 1] - tris[:, 0]
+    # Normalize u_vec (handle possible zero-length with np.linalg.norm)
+    u_norm = np.linalg.norm(u_vec, axis=1, keepdims=True)
+    u = u_vec / u_norm
+    
+    # Second edge for normal computation
+    v_temp = tris[:, 2] - tris[:, 0]
+    # Compute normal: cross product (u x v_temp)
+    n = np.cross(u, v_temp)
+    n_norm = np.linalg.norm(n, axis=1, keepdims=True)
+    n = n / n_norm
+    
+    # Compute v as completing the right-handed frame: v = n x u
+    v = np.cross(n, u)
+    
+    # Compute barycentric coordinates for each projected point relative to tris
+    v0 = tris[:, 1] - tris[:, 0]
+    v1 = tris[:, 2] - tris[:, 0]
+    v2 = closest_points - tris[:, 0]
+    
+    d00 = np.einsum('ij,ij->i', v0, v0)
+    d01 = np.einsum('ij,ij->i', v0, v1)
+    d11 = np.einsum('ij,ij->i', v1, v1)
+    d20 = np.einsum('ij,ij->i', v2, v0)
+    d21 = np.einsum('ij,ij->i', v2, v1)
+    
+    denom = d00 * d11 - d01**2
+    # Avoid division by zero if denom is near zero (degenerate triangle)
+    v_coord = (d11 * d20 - d01 * d21) / denom
+    w_coord = (d00 * d21 - d01 * d20) / denom
+    u_coord = 1.0 - v_coord - w_coord
+    bary = np.stack([u_coord, v_coord, w_coord], axis=1)
+    
+    # Compute the global offset vector from the projected point to the original point.
+    offset_global = target_points - closest_points   # shape: (N,3)
+    
+    # Transform the global offset into the local triangle coordinate frame.
+    # For each point, compute dot products with u, v, and n.
+    offset_local_u = np.einsum('ij,ij->i', offset_global, u)
+    offset_local_v = np.einsum('ij,ij->i', offset_global, v)
+    offset_local_n = np.einsum('ij,ij->i', offset_global, n)
+    offsets_local = np.stack([offset_local_u, offset_local_v, offset_local_n], axis=1)
+
+    tris = query_mesh.triangles[triangle_ids]   # shape: (N, 3, 3)
+    
+    # Barycentric interpolation to get a base point on the triangle plane.
+    points_plane = (bary[:, 0:1] * tris[:, 0] +
+                    bary[:, 1:2] * tris[:, 1] +
+                    bary[:, 2:3] * tris[:, 2])
+    
+    # Compute local frames again (as in projection)
+    u_vec = tris[:, 1] - tris[:, 0]
+    u_norm = np.linalg.norm(u_vec, axis=1, keepdims=True)
+    u = u_vec / u_norm
+    v_temp = tris[:, 2] - tris[:, 0]
+    n = np.cross(u, v_temp)
+    n_norm = np.linalg.norm(n, axis=1, keepdims=True)
+    n = n / n_norm
+    v = np.cross(n, u)
+    
+    # Transform the stored local offset back into global coordinates.
+    # For each point: offset_global = offset_local_x * u + offset_local_y * v + offset_local_z * n
+    offset_global = (offsets_local[:, 0:1] * u +
+                     offsets_local[:, 1:2] * v +
+                     offsets_local[:, 2:3] * n)
+    
+    # Add the recovered offset to the interpolated in-plane point.
+    return points_plane + offset_global
+
+
