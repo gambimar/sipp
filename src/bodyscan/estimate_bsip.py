@@ -33,14 +33,15 @@ def main():
     parser.add_argument('--hull', type=str, default='loose', choices=['loose', 'tight'],
                         help='Whether to use the loose or tight hull for BSIP estimation')
     # Pipeline - HIT, SMPL, InsideHumans
-    parser.add_argument('--pipeline', type=str, default='SMPL', choices=['HIT', 'SMPL', 'InsideHumans'],
+    parser.add_argument('--pipeline', type=str, default='SMPL', choices=['HIT', 'SMPL', 'InsideHumans', 'MRI'],
                         help='Which pipeline to use for BSIP estimation')
     # Input path to the body scan data
     parser.add_argument('--input_path', type=str, default='results/P06/bodyhull',
                         help='Path to the body scan data')
     # Which model to use for the BSIP estimation
-    parser.add_argument('--model', type=str, default='skin', choices=['body', 'face', 'skin', 'scan'],
+    parser.add_argument('--model', type=str, default='skin', choices=['body', 'face', 'skin', 'scan','generic', 'MRI'],
                         help='Which model to use for the BSIP estimation')
+    parser.add_argument('--mri_hull_path', type=str, default='results/P01/MRI/final_masks/deformed')
     # Output path to save the estimated BSIPs as a pandas dataframe
     parser.add_argument('--output_path', type=str, default='results/P01/bodyhull/bsip',
                         help='Path to save the estimated BSIPs')
@@ -74,56 +75,71 @@ def main():
             4.1 Estimate cut planes
             4.2 Estimate BSIPs
     """
-    loaded_data = {}
-    scan_names = {
-        'body': 'bodyscan',
-        'face': 'facescan',
-        'scan': 'scaneca',
-        'skin': 'skin_layer'
-    }
-    smpl_fit = np.load(os.path.join(args.input_path, 'smpl_fit', args.model, 'loose', f'{scan_names[args.model]}_ignored_segments.npz'), allow_pickle=True)
-    #skel_fit = np.load(os.path.join(args.input_path, 'skel_fit', args.model, 'loose_skel', f'{scan_names[args.model]}_ignored_segments.npz'), allow_pickle=True)
-    skel_result = mesh_utils.get_skel_output(os.path.join(args.input_path, 'smpl_fit', args.model, 'loose_skel', f'{scan_names[args.model]}_ignored_segments.npz'), args.gender)
-
-    if args.hull == 'tight':
-        smpl_fit_tight = np.load(os.path.join(args.input_path, 'smpl_fit', args.model, 'tight', f'{scan_names[args.model]}_ignored_segments.npz'), allow_pickle=True)
-
-    if args.pipeline in ['SMPL', "HIT"]:
-        meshes_of_interest = {
-            "all": [trimesh.Trimesh(vertices=smpl_fit['vertices'], faces=skel_result['skin_faces'])],
+    if args.pipeline != 'MRI':
+        scan_names = {
+            'body': 'bodyscan',
+            'face': 'facescan',
+            'scan': 'scaneca',
+            'skin': 'skin_layer',
+            'generic': 'generic',
         }
-        if args.pipeline == 'HIT':
-            mesh_utils.adjust_hit_scaling(os.path.join(args.input_path, "hit_prediction", args.model, f"hit_{args.gender}_best"), smpl_fit)
-            meshes_of_interest['AT'] = [mesh_utils.load_trimesh_from_file(
-                os.path.join(args.input_path, "hit_prediction", args.model, f"hit_{args.gender}_best", "AT_mesh.obj"))]
-            meshes_of_interest['BT'] = [mesh_utils.load_trimesh_from_file(
-                os.path.join(args.input_path, "hit_prediction", args.model, f"hit_{args.gender}_best", "BT_mesh.obj"))]
-            meshes_of_interest['LT'] = [mesh_utils.load_trimesh_from_file(
-                os.path.join(args.input_path, "hit_prediction", args.model, f"hit_{args.gender}_best", "LT_mesh.obj"))]
-    elif args.pipeline == 'InsideHumans':
-        meshes_of_interest = {
-            "skin": [mesh_utils.load_trimesh_from_file(os.path.join(args.input_path, 'smpl_fit', 'skin', 'loose', 'skin_layer_ignored_segments.obj'))],
-            "musc": [mesh_utils.load_trimesh_from_file(os.path.join(args.input_path, 'smpl_fit', 'musc', 'loose', 'musc_layer_ignored_segments.obj'))],
-        }
-    else:
-        raise ValueError(f"Pipeline {args.pipeline} does not exist. Choices: ['SMPL', 'HIT', 'InsideHumans']")
+        smpl_fit = np.load(os.path.join(args.input_path, 'smpl_fit', args.model, 'loose', f'{scan_names[args.model]}_ignored_segments.npz'), allow_pickle=True)
+        #skel_fit = np.load(os.path.join(args.input_path, 'skel_fit', args.model, 'loose_skel', f'{scan_names[args.model]}_ignored_segments.npz'), allow_pickle=True)
+        skel_result = mesh_utils.get_skel_output(os.path.join(args.input_path, 'smpl_fit', args.model, 'loose_skel', f'{scan_names[args.model]}_ignored_segments.npz'), args.gender)
 
-    if args.use_skel:
-        meshes_of_interest['skel'] = [trimesh.Trimesh(vertices=skel_result['skel_verts'], faces=skel_result['skel_faces'])]
+        if args.hull == 'tight':
+            smpl_fit_tight = np.load(os.path.join(args.input_path, 'smpl_fit', args.model, 'tight', f'{scan_names[args.model]}_ignored_segments.npz'), allow_pickle=True)
 
-    # === Deform meshes to the tight hull (if needed) ===
-    if args.hull == 'tight':
-        if args.pipeline == "InsideHumans":
-            meshes_of_interest = { # Tight fits are already known
-                "skin": [mesh_utils.load_trimesh_from_file(os.path.join(args.input_path, 'smpl_fit', 'skin', 'tight', 'skin_layer_ignored_segments.obj'))],
-                "musc": [mesh_utils.load_trimesh_from_file(os.path.join(args.input_path, 'smpl_fit', 'musc', 'tight', 'musc_layer_ignored_segments.obj'))],
+        if args.pipeline in ['SMPL', "HIT"]:
+            meshes_of_interest = {
+                "all": [mesh_utils.load_trimesh_from_file(os.path.join(args.input_path, 'smpl_fit', args.model, 'loose', f'{scan_names[args.model]}_ignored_segments.obj'))],
             }
-        if args.pipeline in ['SMPL', 'HIT']:
-            meshes_of_interest['all'] = [trimesh.Trimesh(vertices=smpl_fit_tight['vertices'], faces=skel_result['skin_faces'])]
             if args.pipeline == 'HIT':
-                raise NotImplementedError("Reshaping for HIT models is not implemented yet")
-            if args.use_skel:
-                raise NotImplementedError("Reshaping with SKEL is not implemented yet")
+                mesh_utils.adjust_hit_scaling(os.path.join(args.input_path, "hit_prediction", args.model, f"hit_{args.gender}_best"), smpl_fit)
+                meshes_of_interest['AT'] = [mesh_utils.load_trimesh_from_file(
+                    os.path.join(args.input_path, "hit_prediction", args.model, f"hit_{args.gender}_best", "AT_mesh.obj"))]
+                meshes_of_interest['BT'] = [mesh_utils.load_trimesh_from_file(
+                    os.path.join(args.input_path, "hit_prediction", args.model, f"hit_{args.gender}_best", "BT_mesh.obj"))]
+                meshes_of_interest['LT'] = [mesh_utils.load_trimesh_from_file(
+                    os.path.join(args.input_path, "hit_prediction", args.model, f"hit_{args.gender}_best", "LT_mesh.obj"))]
+        elif args.pipeline == 'InsideHumans':
+            meshes_of_interest = {
+                "skin": [mesh_utils.load_trimesh_from_file(os.path.join(args.input_path, 'smpl_fit', 'skin', 'loose', 'skin_layer_ignored_segments.obj'))],
+                "musc": [mesh_utils.load_trimesh_from_file(os.path.join(args.input_path, 'smpl_fit', 'musc', 'loose', 'musc_layer_ignored_segments.obj'))],
+            }
+        else:
+            raise ValueError(f"Pipeline {args.pipeline} does not exist. Choices: ['SMPL', 'HIT', 'InsideHumans']")
+
+        if args.use_skel:
+            meshes_of_interest['skel'] = [trimesh.Trimesh(vertices=skel_result['skel_verts'], faces=skel_result['skel_faces'])]
+
+        # === Deform meshes to the tight hull (if needed) ===
+        if args.hull == 'tight':
+            if args.pipeline == "InsideHumans":
+                meshes_of_interest = { # Tight fits are already known
+                    "skin": [mesh_utils.load_trimesh_from_file(os.path.join(args.input_path, 'smpl_fit', 'skin', 'tight', 'skin_layer_ignored_segments.obj'))],
+                    "musc": [mesh_utils.load_trimesh_from_file(os.path.join(args.input_path, 'smpl_fit', 'musc', 'tight', 'musc_layer_ignored_segments.obj'))],
+                }
+            if args.pipeline in ['SMPL', 'HIT']:
+                meshes_of_interest['all'] = [trimesh.Trimesh(vertices=smpl_fit_tight['vertices'], faces=skel_result['skin_faces'])]
+                if args.pipeline == 'HIT':
+                    raise NotImplementedError("Reshaping for HIT models is not implemented yet")
+                if args.use_skel:
+                    raise NotImplementedError("Reshaping with SKEL is not implemented yet")
+
+    if args.pipeline == 'MRI':
+        meshes_of_interest = {
+            "all": [mesh_utils.load_trimesh_from_file(os.path.join(args.mri_hull_path, "all.obj"))],
+            "cortical_bone": [mesh_utils.load_trimesh_from_file(os.path.join(args.mri_hull_path, "cortical_bone.obj"))],
+            "trabecular_bone": [mesh_utils.load_trimesh_from_file(os.path.join(args.mri_hull_path, "trabecular_bone.obj"))],
+            "fat": [mesh_utils.load_trimesh_from_file(os.path.join(args.mri_hull_path, "fat.obj"))],
+            "muscle": [mesh_utils.load_trimesh_from_file(os.path.join(args.mri_hull_path, "muscle.obj"))],
+            "lung": [mesh_utils.load_trimesh_from_file(os.path.join(args.mri_hull_path, "lung.obj"))],
+            "other": [mesh_utils.load_trimesh_from_file(os.path.join(args.mri_hull_path, "other.obj"))],
+        }
+        skel_result = mesh_utils.get_skel_output(os.path.join(args.mri_hull_path, '..', '..', 'bodyhull', 'loose_skel', f'all.npz'), args.gender)
+
+
 
     # === Cut meshes ===
     result_meshes = {}

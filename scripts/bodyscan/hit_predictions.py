@@ -25,6 +25,14 @@ for participant in ['P01', 'P02', 'P03', 'P04', 'P05', 'P06']:
         gender = 'male' if gender == 'M' else 'female'
         command = f"python demos/infer_smpl.py --exp_name=hit_{gender} --target_body {input_path} --device {device} --to_infer smpl_file --out_folder {output_path}"
         commandlist.append(command)
+    
+for generic in ['generic_male', 'generic_female', 'generic_neutral']:
+    input_path = f"../results/{generic}/bodyhull/smpl_fit/generic/generic_model.pkl"
+    output_path = f"../results/{generic}/bodyhull/hit_prediction/generic/"
+    os.makedirs(output_path, exist_ok=True)
+    gender = generic.split('_')[-1]
+    command = f"python demos/infer_smpl.py --exp_name=hit_{gender} --target_body {input_path} --device {device} --to_infer smpl_file --out_folder {output_path}"
+    commandlist.append(command)
 
 if __name__ == '__main__':
     for command in commandlist:

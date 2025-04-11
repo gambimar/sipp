@@ -17,6 +17,7 @@ default_densities = {
             "BT": 1178, # Bone tissue only - the bones aren't very exact
             "AT": 911, # Adipose tissue only
             "LT": 1090, # Lean tissue only
+            "LT_torso": 1050,
             "skel": 1178, # Bone tissue only
         },
     "SMPL":
@@ -33,6 +34,16 @@ default_densities = {
     "SKEL":
         {
             "pelvis": 1178,
+        },
+    "MRI":
+        {
+            "all": 0, # All others should be 
+            "trabecular_bone": 1178,
+            "cortical_bone": 1178,
+            "fat": 911,
+            "muscle": 1090,
+            "lung": 394-1050, # ToDo: Fix the masks, this is stupid
+            "other": 1050,
         }
 }
 
@@ -79,6 +90,8 @@ def estimate_bsip(result_meshes, body_orientations, joints, args):
             mesh_sip = get_inertia_and_update_main_body_mass(mesh_sip, "skin", ["musc", "skel"])
         elif args.pipeline == "InsideHumans" and not args.use_skel:
             mesh_sip = get_inertia_and_update_main_body_mass(mesh_sip, "skin", ["musc"])
+        elif args.pipeline == "MRI":
+            mesh_sip = get_inertia_and_update_main_body_mass(mesh_sip, "all", [])
         else: # Only the SMPL model, do nothing
             mesh_sip = get_inertia_and_update_main_body_mass(mesh_sip, "all", [])
 
@@ -161,6 +174,7 @@ def get_inertia_and_update_main_body_mass(mesh_sip, target_mesh, substraction_me
             mesh["inertia"] = trimesh.inertia.transform_inertia(T, mesh["mesh"].moment_inertia,
                                                                 mass=mesh["mass"], parallel_axis=True)
         submesh_inertia.append(mesh["inertia"])
+    
     mesh_sip[target_mesh]["inertia"] = mesh_sip[target_mesh]['mesh'].moment_inertia - sum(submesh_inertia)
     new_mass = mesh_sip[target_mesh]["mass"] - sum([mesh_sip[k]["mass"] for k in substraction_meshes])
     mesh_sip[target_mesh]["mass_center"] = (mesh_sip[target_mesh]["mass"] * complete_com - sum([mesh_sip[k]["mass"] * mesh_sip[k]["mass_center"] for k in substraction_meshes])) / new_mass

@@ -327,8 +327,8 @@ def cut_segment(segment_name, meshes, joints, allow_convex_hull="default"):
     cuts_dict = cut_per_segment[segment_name]
     for cut_idx, cut in cuts_dict.items():
         cuts[cut_idx] = {}
-        cuts[cut_idx]['normal'] = parse_normal(cut['normal'], joints, side)
-        cuts[cut_idx]['joint'] = parse_entry(cut['joint'], joints, side)
+        cuts[cut_idx]['normal'] = parse_normal(cut['normal'], joints, side) #+ 1e-3 * np.random.randn(3)
+        cuts[cut_idx]['joint'] = parse_entry(cut['joint'], joints, side) #+ 1e-3 * np.random.randn(3)
         # Check if mask is present
         if 'safety_cut' in cut:
             cuts[cut_idx]['safety_cut'] = cut['safety_cut']
