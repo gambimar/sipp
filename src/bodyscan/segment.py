@@ -49,10 +49,10 @@ cut_per_segment = {
             }
         },
         2: { # Remove other foot
-            "joint": ["talus_m", "talus"],
+            "joint": ["talus_m", "talus"],# Be a bit closer to the origin talus --> HIT is not perfect
             "normal": {
                 "type": "two_point",
-                "points": ["talus_m", "talus"]
+                "points": ["talus_m", "talus"] 
             },
         }
     },
@@ -73,7 +73,7 @@ cut_per_segment = {
             }
         },
         2: { # Remove other leg
-            "joint": ["tibia_m", "tibia"],
+            "joint": ["tibia_m", "tibia"], # Be a bit closer to the origin tibia --> HIT is not perfect
             "normal": {
                 "type": "two_point",
                 "points": ["tibia_m", "tibia"]
@@ -303,7 +303,7 @@ def parse_mask(mask, joints, side, mesh):
     return face_idx
 
 
-def cut_segment(segment_name, meshes, joints, allow_convex_hull="default"):
+def cut_segment(segment_name, meshes, joints, allow_convex_hull="default", try_fix=True):
     """
         Inputs:
             segment_name: str, the name of the segment
@@ -343,15 +343,19 @@ def cut_segment(segment_name, meshes, joints, allow_convex_hull="default"):
                 cut_meshes.append(
                     safety_copy.slice_plane(plane_origin=cut['joint'], plane_normal=-cut['normal'], cap=True))
             mesh = mesh.slice_plane(plane_origin=cut['joint'], plane_normal=cut['normal'], cap=True)
+            #mesh = trimesh.intersections.slice_mesh_plane(mesh, cut['normal'], cut['joint'], cap=True,engine="triangle").process(validate=True) # Performs a lot worse
         if mesh.is_watertight:
             cut_meshes.append(mesh)
         else:
-            print(f"Warning: resulting mesh {segment_name} is not watertight")
+            if not try_fix:
+                print(f"Warning: resulting mesh {segment_name} is not watertight")
             submeshes = mesh.split(only_watertight=False)
             for submesh in submeshes:
                 if submesh.is_watertight:
                     cut_meshes.append(submesh)
                 else:
+                    if len(submesh.faces) < 3:
+                        continue # SKEL contains a lot of broken faces
                     submesh.fill_holes()
                     submesh.fix_normals()
                     trimesh.repair.fix_winding(submesh)
@@ -359,7 +363,15 @@ def cut_segment(segment_name, meshes, joints, allow_convex_hull="default"):
                     if submesh.is_watertight:
                         print('Repaired with trimesh')
                         cut_meshes.append(submesh)
-                    else:
+                    if try_fix: # Don't try to fix SKEL, that would be hopeless
+                        import pymeshfix
+                        meshfix = pymeshfix.MeshFix(submesh.vertices, submesh.faces)
+                        meshfix.repair()
+                        submesh = trimesh.Trimesh(vertices=meshfix.v, faces=meshfix.f)
+                        if submesh.is_watertight:
+                            print('Repaired with pymeshfix')
+                            cut_meshes.append(submesh)
+                    if not submesh.is_watertight:
                         if allow_convex_hull:
                             print('Could not repair mesh, fallback to convex hull')
                             cut_meshes.append(trimesh.convex.convex_hull(submesh))
@@ -367,3 +379,24 @@ def cut_segment(segment_name, meshes, joints, allow_convex_hull="default"):
         return False
     complete_mesh = trimesh.util.concatenate(cut_meshes)
     return complete_mesh
+
+def slice_trimesh_with_pyocct(mesh, plane_origin, plane_normal):
+    """
+    Slice a trimesh with a plane using pyocct.
+    Args:
+        mesh (trimesh.Trimesh): The mesh to slice.
+        plane_origin (numpy.ndarray): The origin of the plane.
+        plane_normal (numpy.ndarray): The normal of the plane.
+    Returns:
+        list: A list of sliced meshes.
+    """
+    from pyocct import BRepAlgoAPI, BRepBuilderAPI, gp
+    # Create the plane
+    plane = gp.Plane(gp.Pnt(*plane_origin), gp.Dir(*plane_normal))
+    # Create the shape from the mesh
+    shape = trimesh_to_occt(mesh)
+    # Slice the shape with the plane
+    sliced_shape = BRepAlgoAPI.BRepAlgoAPI_Slice(shape, plane).Shape()
+    # Convert the sliced shape back to trimesh
+    sliced_mesh = occt_to_trimesh(sliced_shape)
+    return sliced_mesh
