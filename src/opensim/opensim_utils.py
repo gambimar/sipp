@@ -192,7 +192,8 @@ def filter_data(data_path, lowpass_f, lowpass_order, mode='ik', return_df=False)
 
 def hull_bsip_to_opensim(hull_bsip, model,
                          arms_from_hull=False,
-                         extra_shoe_weight=0):
+                         extra_shoe_weight=0,
+                         keep_bodies=False):
 
     # Check if lumbar_body is in the hull_bsip.names and replace it with "torso"
     if 'lumbar_body' in hull_bsip['segment'].values:
@@ -201,12 +202,17 @@ def hull_bsip_to_opensim(hull_bsip, model,
     hull_bsip.rename(columns={'segment': 'name'}, inplace=True)
 
     # Define arms segments
-    arm_segments = ['humerus_r', 'humerus_l', 'radius_r', 'radius_l', 'ulna_r', 'ulna_l', 'hand_r', 'hand_l']
+    if not arms_from_hull:
+        arm_segments = ['humerus_r', 'humerus_l', 'radius_r', 'radius_l', 'ulna_r', 'ulna_l', 'hand_r', 'hand_l']
+    else: 
+        arm_segments = []
+    if type(keep_bodies) == list: # We simply keep the bodies that are desired (usually the toes in MRI, they are out of volume)
+        arm_segments += keep_bodies
 
     model_bsip = get_bsip_dataframe(model)
     bodymass = hull_bsip['mass'].sum()
 
-    if not arms_from_hull:
+    if not arms_from_hull or keep_bodies:
         # Use the original BSIP of the model for the arms
         # Remove the arms from the hull_bsip
         hull_bsip = hull_bsip[~hull_bsip['name'].isin(arm_segments)]
@@ -217,6 +223,18 @@ def hull_bsip_to_opensim(hull_bsip, model,
         bodymass_new = hull_bsip['mass'].sum()
         hull_bsip['mass'] = hull_bsip['mass'] / bodymass_new * bodymass
         hull_bsip['inertia'] = hull_bsip['inertia'].apply(lambda x: x / bodymass_new * bodymass)
+    else: 
+        # Rotate the arms to the correct orientation, discrepancy between skel and opensim - T-pose or handing arms defaults
+        from scipy.spatial.transform import Rotation as R
+        for arm in arm_segments:
+            if arm in hull_bsip['name'].values:
+                if arm.endswith('_r'):
+                    rotate = [0,0,-np.pi/2]
+                else:
+                    rotate = [0,0,np.pi/2]
+                r =  R.from_euler('xyz', rotate, degrees=False)
+                hull_bsip.loc[hull_bsip['name'] == arm, 'mass_center'] = hull_bsip.loc[hull_bsip['name'] == arm, 'mass_center'] @ r.as_matrix()
+                hull_bsip.loc[hull_bsip['name'] == arm, 'inertia'] = hull_bsip.loc[hull_bsip['name'] == arm, 'inertia'].apply(lambda x: r.as_matrix() @ x @ r.as_matrix().T)
 
     if extra_shoe_weight > 0:
         # Add the weight of the shoes to the feet
