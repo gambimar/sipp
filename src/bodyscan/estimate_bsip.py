@@ -146,7 +146,8 @@ def main():
     for mesh_name, mesh in meshes_of_interest.items():
         result_meshes[mesh_name] = {}
         for body in segment.all_bodies:
-            result_meshes[mesh_name][body] = segment.cut_segment(body, mesh, skel_result['joints'])
+            try_fix = False if mesh_name == "skel" else True # Skel has broken faces, so we don't want to fix them
+            result_meshes[mesh_name][body] = segment.cut_segment(body, mesh, skel_result['joints'], try_fix=try_fix)
 
     # === Debug report ===
     if args.debug:

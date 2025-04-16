@@ -109,9 +109,8 @@ def estimate_bsip(result_meshes, body_orientations, joints, args):
         com = sum([mesh["mass_center"] * mesh['mass'] for mesh in mesh_sip.values()]) / mass
         inertia = sum([mesh['inertia'] for mesh in mesh_sip.values()])
 
-        # Rotate the inertia to the correct orientation
-        transform = R.from_matrix(orientation)
-        inertia = transform.inv().apply(inertia)
+        # Rotate the inertia to the correct orientation - fixed, scipy.spatial.transform.Rotation.apply would only work for vectors
+        inertia = orientation.T @ inertia @ orientation
 
         result.loc[len(result)] = [body, mass, com, inertia]
     return result

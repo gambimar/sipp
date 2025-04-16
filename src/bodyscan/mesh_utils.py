@@ -170,6 +170,8 @@ def save_np_res_as_pkl(np_res_path):
             res_as_dict["betas"] = np_res[k].T.squeeze()
         elif k == "pose":
             res_as_dict["pose"] = np_res[k].T.squeeze()
+        elif k == "trans":
+            res_as_dict['trans'] = np_res[k].T.squeeze()
         else:
             res_as_dict[k] = np_res[k]
     with open(pkl_res_path, 'wb') as f:
@@ -212,7 +214,7 @@ def adjust_hit_scaling(hit_path, smpl_fit):
         mesh.vertices += smpl_fit['trans']
         save_trimesh_to_obj(mesh, os.path.join(hit_path, f"{output}_mesh_adjusted.obj"))
 
-def deform_mesh(input_vertices, target_vertices, query_points, kernel = 'thin_plate_spline', epsilon=30.0, neighbors=None, smoothing=1e-5):
+def deform_mesh(input_vertices, target_vertices, query_points, kernel = 'thin_plate_spline', epsilon=30.0, neighbors=None, smoothing=1e-5, degree=None):
     """
         Deform query points, that are in the input mesh deformation space, to the target mesh deformation space.
 
@@ -233,7 +235,7 @@ def deform_mesh(input_vertices, target_vertices, query_points, kernel = 'thin_pl
     deformation = target_vertices - input_vertices
 
     # Radial basis function (RBF) kernel
-    rbf_model = RBFInterpolator(input_vertices, deformation, kernel=kernel, epsilon=epsilon, neighbors=neighbors, smoothing=smoothing)
+    rbf_model = RBFInterpolator(input_vertices, deformation, kernel=kernel, epsilon=epsilon, neighbors=neighbors, smoothing=smoothing, degree=degree)
     query_deformations = rbf_model(query_points)
     return query_points + query_deformations
 
