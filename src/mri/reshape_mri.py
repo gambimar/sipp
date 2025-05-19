@@ -16,6 +16,7 @@ import numpy as np
 import sys
 import pandas as pd
 import torch
+import subprocess
 
 # Ignore segments, MRI has a good head, therefore we can add it to the SMPL fit. Some participants have missing toes
 ignore_segments = {
@@ -41,7 +42,7 @@ def main():
     parser.add_argument('--output_path', type=str,
                         default='results/P01/MRI/bodyhull/')
     parser.add_argument('--use_tight_fit', default=True)
-    parser.add_argument('--deform_no_ignored_segments', default=True,
+    parser.add_argument('--deform_no_ignored_segments', default=False,
                         help='Deform the mesh without taking ignored segments into account')
 
     args = parser.parse_args()
@@ -99,7 +100,7 @@ def main():
             cfg["save_path"] = args.output_path+"/loose" if ssm == "smpl" else args.output_path+"/loose_skel"
             os.makedirs(cfg["save_path"], exist_ok=True)
 
-            #fit_body_model.fit_body_model_onto_scan(cfg)
+            fit_body_model.fit_body_model_onto_scan(cfg)
             if ssm == "smpl":
                 res_path = f"{args.output_path}/loose/{args.hull_name_mri}.npz"
             else:
@@ -115,9 +116,9 @@ def main():
                 path="SMPL-Fitting/configs/loss_weight_configs.yaml")
             for key in cfg_loss_weights.keys():
                 cfg_loss_weights[key]['landmark'] = 0
-                cfg_loss_weights[key]['smooth'] = 10
+                cfg_loss_weights[key]['smooth'] = 60
                 cfg_loss_weights[key]['normal'] = 10
-                cfg_loss_weights[key]['neighbordistance'] = 1e3 # We need the "skin" to be warped to the new shape, so that features beneath that do not get distorted -> That problem does not apply to the standing shapes, where variations are smaller in general
+                cfg_loss_weights[key]['neighbordistance'] = 300 # We need the "skin" to be warped to the new shape, so that features beneath that do not get distorted -> That problem does not apply to the standing shapes, where variations are smaller in general
             cfg_loss_weights = initialize_fit_verts_loss_weights(cfg_loss_weights)
             cfg.update(cfg_tight_fit)
             cfg["loss_weights"]=cfg_loss_weights
@@ -129,7 +130,7 @@ def main():
             os.makedirs(cfg["save_path"], exist_ok=True)
             cfg = process_body_model_fit_verts(cfg)
             #cfg['ignore_segments'] #+= ["head"] # Should not remove head
-            cfg['use_losses'] = ["neighbordistance","smooth","normal", "data"]
+            cfg['use_losses'] = ["smooth","neighbordistance", "data"]
             cfg['random_init_A'] = False
             set_seed(cfg["seed"])
             save_configs(cfg)
@@ -150,11 +151,13 @@ def main():
         input_points = input_mesh.vertices
         target_points = target_mesh.vertices
 
+        args.use_tight_fit = False
         if args.use_tight_fit: # Apply the loose-tight fit transformation to the loose fit that is rigged to match the MRI
             start_mesh = mesh_utils.load_trimesh_from_file(f"{args.scan_result_path}/loose/{args.scan_name}_ignored_segments.obj")
             tight_mesh = mesh_utils.load_trimesh_from_file(f"{args.scan_result_path}/tight/{args.scan_name}_ignored_segments.obj")
             target_points = mesh_utils.project_mesh_to_deformed(start_mesh, tight_mesh.vertices, target_mesh)
             
+        args.deform_no_ignored_segments = False
         if args.deform_no_ignored_segments:
             # Remove the _ignored segments from the target and input meshes 
             import json
@@ -184,14 +187,22 @@ def main():
             scan_vertices[:, 2] *= -1  # Invert z axis
 
             #mesh = mesh_utils.load_trimesh_from_file(f"{args.output_path}/loose/{args.hull_name_mri}.obj")
-            mesh.vertices = deform_mesh(input_points, target_points, scan_vertices, kernel='thin_plate_spline', neighbors=None, smoothing=100)
+            mesh.vertices = deform_mesh(input_points, target_points, scan_vertices, kernel='thin_plate_spline', neighbors=None, smoothing=1, degree=None)
             mesh.export(target_path)
             print(f"Deformed mesh saved to {target_path}")
             print(f"Volume of mesh {mesh_name} [L]: Before: {initial_volume*1000:.2f}, After: {mesh.volume*1000:.2f}")
-             
 
 
+    if True:
+        # Create the opensim segments dataframe
+        estimate_bsip_command = f"python src/bodyscan/estimate_bsip.py --pipeline='MRI'"
+        c_input_path = f"--mri_hull_path {args.mri_hull_path}/deformed/"
+        subprocess.run(estimate_bsip_command+c_input_path, shell=True)
 
+        # Save the output as an opensim 
+        #hull_bsip = pd.read_csv(
+
+        
 
 
 

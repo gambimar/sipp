@@ -42,7 +42,7 @@ default_densities = {
             "cortical_bone": 1178,
             "fat": 911,
             "muscle": 1090,
-            "lung": 394-1050, # ToDo: Fix the masks, this is stupid
+            "lung": 394,
             "other": 1050,
         }
 }

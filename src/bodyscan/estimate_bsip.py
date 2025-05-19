@@ -127,7 +127,7 @@ def main():
                 if args.use_skel:
                     raise NotImplementedError("Reshaping with SKEL is not implemented yet")
 
-    if args.pipeline == 'MRI':
+    else:
         meshes_of_interest = {
             "all": [mesh_utils.load_trimesh_from_file(os.path.join(args.mri_hull_path, "all.obj"))],
             "cortical_bone": [mesh_utils.load_trimesh_from_file(os.path.join(args.mri_hull_path, "cortical_bone.obj"))],
