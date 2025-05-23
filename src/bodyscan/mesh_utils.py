@@ -179,16 +179,16 @@ def save_np_res_as_pkl(np_res_path):
 
 def get_skel_output(npz_file, gender):
     data = np.load(npz_file, allow_pickle=True)
-    pose = torch.tensor(data['pose'])
-    betas = torch.tensor(data['shape'])
-    trans = torch.tensor(data['trans']).unsqueeze(0)
+    pose = torch.tensor(data['pose']).to("cpu")
+    betas = torch.tensor(data['shape']).to("cpu")
+    trans = torch.tensor(data['trans']).unsqueeze(0).to("cpu")
     # Vis skel fit when these are coming in
     model = SKEL(gender)
     joint_idx_fixed_beta = [0, 5, 10, 13, 18, 23] # Pytorch 1.x monkey patch
     model.register_buffer('joint_idx_fixed_beta', torch.LongTensor(joint_idx_fixed_beta)) # Pytorch 1.x monkey patch
     output = model(poses=pose,
                    betas=betas,
-                   trans=torch.zeros(1,3).to("cuda" if torch.cuda.is_available() else "cpu"))
+                   trans=torch.zeros(1,3).to("cpu"))
     skin_verts = (output['skin_verts'] * data['scale']) + trans
     joints = (output['joints'] * data['scale']) + trans
     skel_verts = (output['skel_verts'] * data['scale']) + trans

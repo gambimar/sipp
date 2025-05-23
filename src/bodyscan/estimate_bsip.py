@@ -135,7 +135,7 @@ def main():
             "fat": [mesh_utils.load_trimesh_from_file(os.path.join(args.mri_hull_path, "fat.obj"))],
             "muscle": [mesh_utils.load_trimesh_from_file(os.path.join(args.mri_hull_path, "muscle.obj"))],
             "lung": [mesh_utils.load_trimesh_from_file(os.path.join(args.mri_hull_path, "lung.obj"))],
-            "other": [mesh_utils.load_trimesh_from_file(os.path.join(args.mri_hull_path, "other.obj"))],
+            #"other": [mesh_utils.load_trimesh_from_file(os.path.join(args.mri_hull_path, "other.obj"))],
         }
         skel_result = mesh_utils.get_skel_output(os.path.join(args.mri_hull_path, '..', '..', 'bodyhull', 'loose_skel', f'all.npz'), args.gender)
 
@@ -144,10 +144,20 @@ def main():
     # === Cut meshes ===
     result_meshes = {}
     for mesh_name, mesh in meshes_of_interest.items():
+        allow_convex_hull = 'default'
         result_meshes[mesh_name] = {}
-        for body in segment.all_bodies:
+        all_bodies = segment.all_bodies if args.pipeline != 'MRI' else segment.mri_bodies
+        for body in all_bodies:
+            ##if body != "femur_r": continue
+            if args.pipeline == 'MRI': print(f"Cutting {mesh_name} for {body}")
             try_fix = False if mesh_name == "skel" else True # Skel has broken faces, so we don't want to fix them
-            result_meshes[mesh_name][body] = segment.cut_segment(body, mesh, skel_result['joints'], try_fix=try_fix)
+            if args.pipeline == "MRI":
+                allow_convex_hull = 'default' if mesh_name == "all" else 'no'
+                result_meshes[mesh_name][body] = segment.cut_segment(body, mesh, skel_result['joints'], try_fix=try_fix, allow_convex_hull=allow_convex_hull, split_first=False, mesh_name = mesh_name)
+            else:
+                result_meshes[mesh_name][body] = segment.cut_segment(body, mesh, skel_result['joints'], try_fix=try_fix)
+            
+
 
     # === Debug report ===
     if args.debug:

@@ -37,7 +37,7 @@ default_densities = {
         },
     "MRI":
         {
-            "all": 0, # All others should be 
+            "all": 1050, # All others should be 
             "trabecular_bone": 1178,
             "cortical_bone": 1178,
             "fat": 911,
@@ -56,8 +56,12 @@ def estimate_bsip(result_meshes, body_orientations, joints, args):
     :param args: Arguments
     :return: Dictionary of BSIPs
     """
+    if args.pipeline == "MRI":
+        all_bodies = segment.mri_bodies
+    else:
+        all_bodies = segment.all_bodies
     result = pd.DataFrame(columns=['segment', 'mass', "mass_center", 'inertia'])
-    for body in segment.all_bodies:
+    for body in all_bodies:
         mesh_sip = {}
         for mesh_name, mesh in result_meshes.items():
             if body not in mesh:
@@ -91,7 +95,7 @@ def estimate_bsip(result_meshes, body_orientations, joints, args):
         elif args.pipeline == "InsideHumans" and not args.use_skel:
             mesh_sip = get_inertia_and_update_main_body_mass(mesh_sip, "skin", ["musc"])
         elif args.pipeline == "MRI":
-            mesh_sip = get_inertia_and_update_main_body_mass(mesh_sip, "all", [])
+            mesh_sip = get_inertia_and_update_main_body_mass(mesh_sip, "all", ["trabecular_bone", "cortical_bone", "fat", "muscle", "lung"])
         else: # Only the SMPL model, do nothing
             mesh_sip = get_inertia_and_update_main_body_mass(mesh_sip, "all", [])
 

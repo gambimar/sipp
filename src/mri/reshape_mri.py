@@ -11,12 +11,16 @@ import argparse
 import os
 
 os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+# print( the python path)
+import sys
 from src.bodyscan.mesh_utils import deform_mesh
+from src.opensim import opensim_utils
 import numpy as np
 import sys
 import pandas as pd
 import torch
 import subprocess
+
 
 # Ignore segments, MRI has a good head, therefore we can add it to the SMPL fit. Some participants have missing toes
 ignore_segments = {
@@ -55,7 +59,7 @@ def main():
     betas, scale = scan_result['shape'], scan_result['scale']
 
     # Fitting procedure, known scaneca shape --> pose to MRI
-    if True:
+    if False:
         sys.path.append("SMPL-Fitting")
         import fit_vertices
         import fit_body_model
@@ -75,20 +79,22 @@ def main():
             cfg['fit_body_model_optimization']['ignore_segments'] = ign_
             cfg['fit_body_model_optimization']['volume_target'] = False
             sex = participant_info[participant_info["participant"] == args.participant].sex.values[0]
+            mass = participant_info[participant_info["participant"] == args.participant].mass_treadmill.values[0]
             #
             landmarks_path = "results/P01/bodyhull/transformed/bodyscan_landmarks.json" # This is useless, but we need to provide it
             scan_info = {"participant_id": args.participant,
                         "scan_name": "MRI",
                         "fit_type": "loose"}
-            scan_info["fit_type"] = "loose" if ssm == "smpl" else "loose_skel"
-            cfg["body_model"] = ssm
+            scan_info["fit_type"] = "loose" if ssm == "smpl" else "loose_skel" 
+            cfg = mesh_utils.process_cfg_body_model(cfg, scan_info, args.mri_hull_path+"/all.stl", landmarks_path)
+            cfg['body_model'] = ssm
             if ssm == "skel":
-                cfg['reference_smpl'] = f"{args.output_path}/loose/MRI_ignored_segments.obj"#
+                cfg['reference_smpl'] = f"{args.output_path}/loose/all.obj"#
                 cfg['loss_weights'] = initialize_fit_bm_loss_weights(
                                                 load_loss_weights_config(which_strategy="fit_bm_loss_weight_strategy",
                                                 which_option="skel",
                                                 path="SMPL-Fitting/configs/loss_weight_configs.yaml"))
-            cfg = mesh_utils.process_cfg_body_model(cfg, scan_info, args.mri_hull_path+"/all.stl", landmarks_path)
+            cfg['body_model'] = ssm
             cfg['body_model_gender'] = "FEMALE" if sex == "F" else "MALE"  #
             init_coords = torch.tensor([-0.2, 1.5, 0.15])
             cfg['init_params'] = {'trans': init_coords,
@@ -142,7 +148,6 @@ def main():
             smpl_result = np.load(res_path, allow_pickle=True)
             mesh_utils.smpl_result_to_obj(smpl_result, res_path.replace(".npz", ".obj"), has_faces=False)
 
-        
         # RBF interpolate the meshes
         res_path = f"{args.output_path}/tight/{args.hull_name_mri}.obj"
         input_mesh = mesh_utils.load_trimesh_from_file(res_path)
@@ -192,19 +197,35 @@ def main():
             print(f"Deformed mesh saved to {target_path}")
             print(f"Volume of mesh {mesh_name} [L]: Before: {initial_volume*1000:.2f}, After: {mesh.volume*1000:.2f}")
 
-
     if True:
+        participant_info = pd.read_csv("data/participant_info.csv")
+        mass = participant_info[participant_info["participant"] == args.participant].mass_treadmill.values[0]
         # Create the opensim segments dataframe
-        estimate_bsip_command = f"python src/bodyscan/estimate_bsip.py --pipeline='MRI'"
-        c_input_path = f"--mri_hull_path {args.mri_hull_path}/deformed/"
+        estimate_bsip_command = f"python -m src.bodyscan.estimate_bsip --pipeline='MRI' "
+        c_input_path = f"--mri_hull_path {args.mri_hull_path}/deformed/ --debug True --mass {mass} --output_path results/{args.participant}/bodyhull/bsip"
         subprocess.run(estimate_bsip_command+c_input_path, shell=True)
 
         # Save the output as an opensim 
         #hull_bsip = pd.read_csv(
+        opensim_model = f"results/{args.participant}/gait/addB-ignore_phys/Models/match_markers_but_ignore_physics.osim"
+        opensim_model = opensim_utils.get_model(opensim_model)
+        hull_bsip = pd.read_pickle(f"results/{args.participant}/bodyhull/bsip/MRI_skin_loose.pkl")
+        new_hull_bsip, osim_model = opensim_utils.hull_bsip_to_opensim(hull_bsip, opensim_model, extra_shoe_weight=(mass), arms_from_hull=False)
+        os.makedirs(f"results/{args.participant}/mri/osim_models", exist_ok=True)
+        opensim_utils.save_opensim_model(osim_model, f"results/{args.participant}/mri/osim_models/mri.osim")
 
-        
 
 
 
 if __name__ == "__main__":
     main()
+    # Usage:
+    # python -m src.mri.reshape_mri --scan_result_path results/P01/bodyhull/smpl_fit/scan/ --mri_hull_path results/P01/MRI/final_masks --scan_name scaneca --participant P01 --hull_name_mri all --output_path results/P01/MRI/bodyhull/
+""" All commands:
+python -m src.mri.reshape_mri --scan_result_path results/P01/bodyhull/smpl_fit/scan/ --mri_hull_path results/P01/MRI/final_masks --scan_name scaneca --participant P01 --hull_name_mri all --output_path results/P01/MRI/bodyhull/
+python -m src.mri.reshape_mri --scan_result_path results/P02/bodyhull/smpl_fit/scan/ --mri_hull_path results/P02/MRI/final_masks --scan_name scaneca --participant P02 --hull_name_mri all --output_path results/P02/MRI/bodyhull/
+python -m src.mri.reshape_mri --scan_result_path results/P03/bodyhull/smpl_fit/scan/ --mri_hull_path results/P03/MRI/final_masks --scan_name scaneca --participant P03 --hull_name_mri all --output_path results/P03/MRI/bodyhull/
+python -m src.mri.reshape_mri --scan_result_path results/P04/bodyhull/smpl_fit/scan/ --mri_hull_path results/P04/MRI/final_masks --scan_name scaneca --participant P04 --hull_name_mri all --output_path results/P04/MRI/bodyhull/
+python -m src.mri.reshape_mri --scan_result_path results/P05/bodyhull/smpl_fit/scan/ --mri_hull_path results/P05/MRI/final_masks --scan_name scaneca --participant P05 --hull_name_mri all --output_path results/P05/MRI/bodyhull/
+python -m src.mri.reshape_mri --scan_result_path results/P06/bodyhull/smpl_fit/scan/ --mri_hull_path results/P06/MRI/final_masks --scan_name scaneca --participant P06 --hull_name_mri all --output_path results/P06/MRI/bodyhull/
+"""
