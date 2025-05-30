@@ -36,7 +36,7 @@ def main():
     # Filter both IK and ID data if given
     if args.lowpass_f > 0:
         ik_path, ik_df = opensim_utils.filter_data(args.ik_path, args.lowpass_f, args.lowpass_order, return_df = True, mode='ik')
-        grf_path = opensim_utils.filter_data(args.mot_path, args.lowpass_f, args.lowpass_order, mode='grf')
+        grf_path = opensim_utils.filter_data(args.mot_path, args.lowpass_f, args.lowpass_order, mode='grf', clean=True)
     else:
         ik_path = args.ik_path
         grf_path = args.mot_path

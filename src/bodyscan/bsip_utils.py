@@ -79,7 +79,7 @@ def estimate_bsip(result_meshes, body_orientations, joints, args):
                 'mass': mass,
                 "mass_center": com,
             }
-        
+
         # Remove overlapping meshes
         if args.pipeline == "HIT" and not args.use_skel:
             mesh_sip = get_inertia_and_update_main_body_mass(mesh_sip, "all", ["AT", "BT", "LT"])

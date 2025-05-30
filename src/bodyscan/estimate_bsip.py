@@ -139,6 +139,25 @@ def main():
         }
         skel_result = mesh_utils.get_skel_output(os.path.join(args.mri_hull_path, '..', '..', 'bodyhull', 'loose_skel', f'all.npz'), args.gender)
 
+    # === HIT Error correction, flipping faces by heuristics in case blender segmentation flips them  ===
+    if args.pipeline == "HIT":
+        # I have 0 trust in HIT's marching cubes, so we bisect everything with the "all" mesh
+        import src.bodyscan.slice_mesh_blender as smb
+        for mesh_name, mesh in meshes_of_interest.items():
+            if mesh_name == "all":
+                continue
+            print(f"Cutting {mesh_name} with the all mesh")
+            # Cut the mesh with the all mesh
+            cut_mesh = smb.slice_mesh_with_blender(mesh[0], meshes_of_interest["all"][0], "INTERSECT")
+            if cut_mesh:
+                meshes_of_interest[mesh_name] = [cut_mesh]
+            else:
+                raise ValueError(f"Could not cut {mesh_name} with the all mesh")
+            if args.debug:
+                # print volume loss
+                original_volume = np.sum([part.volume for part in mesh])
+                new_volume = np.sum([part.volume for part in meshes_of_interest[mesh_name]])
+                print(f"Volume loss for {mesh_name}: {original_volume*1000:.2f} -> {new_volume*1000:.2f} ({(original_volume - new_volume) / original_volume * 100:.2f}%)")
 
 
     # === Cut meshes ===
@@ -157,6 +176,25 @@ def main():
             else:
                 result_meshes[mesh_name][body] = segment.cut_segment(body, mesh, skel_result['joints'], try_fix=try_fix)
             
+    # === HIT: Fix windings: all interior meshes are flipped ===
+    if args.pipeline == "HIT":
+        for mesh_name, mesh in result_meshes.items():
+            if mesh_name not in ['all', 'BT', 'skel']:
+                for body in all_bodies:
+                    if body not in mesh:
+                        continue
+                    if type(mesh[body]) != trimesh.Trimesh:
+                        print(f"Mesh {mesh_name} for {body} is not a trimesh, but {type(mesh[body])}")
+                        continue
+                    n_bodies = 2 if body == "lumbar_body" else 1 # Safety cuts results in 1 valid bodies
+                    meshes = result_meshes[mesh_name][body].split(only_watertight=True)
+                    # Sort meshes by volume
+                    meshes = sorted(meshes, key=lambda x: x.volume, reverse=True)
+                    for i in range(len(meshes)):
+                        if i >= n_bodies:
+                            meshes[i].faces = meshes[i].faces[:, ::-1]
+                    result_meshes[mesh_name][body] = trimesh.util.concatenate(meshes)
+                        
 
 
     # === Debug report ===

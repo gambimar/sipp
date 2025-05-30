@@ -146,7 +146,7 @@ def concat_addbiomechanics_data(ik_data_path):
 
 
 
-def filter_data(data_path, lowpass_f, lowpass_order, mode='ik', return_df=False):
+def filter_data(data_path, lowpass_f, lowpass_order, mode='ik', return_df=False, clean=False):
     from scipy.signal import butter, sosfiltfilt
     if mode == 'ik':
         skiprows = 10
@@ -154,8 +154,20 @@ def filter_data(data_path, lowpass_f, lowpass_order, mode='ik', return_df=False)
         skiprows = 5
     else:
         raise ValueError('Filter mode should be either marker or grf')
+    
 
     data = pd.read_csv(data_path, sep='\t', skiprows=skiprows)
+    if clean:
+        # Clamp the center of pressure values to min/max values of 1.5m (bigger than the treadmill dimensions)
+        # and the torques to -100Nm to 100N*m
+        # This is done to avoid unrealistic values in the data, which would then get filtered and cause more issues
+        for col in data.columns:
+            if col[-2] == 'p':
+                data[col] = data[col].clip(-1.5, 1.5)
+            if col.endswith('_torque_y'):
+                # Clamp the torque values to -100Nm to 100N*m
+                data[col] = data[col].clip(-100, 100)
+
     # Lowpass filter the data
     def butter_lowpass_filter(data, cutoff, fs, order):
         nyquist = 0.5 * fs
