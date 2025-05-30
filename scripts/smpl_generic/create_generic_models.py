@@ -26,7 +26,7 @@ for model_name in ['generic_male', 'generic_female']: # There's no neutral HIT
         3. Run HIT inference on the SMPL instance
         4. Scale OpenSim models to the landmarks of the SKEL/SMPL instance
     """
-
+    continue
     ### --- SKEL model ---
     gender = model_name.split("_")[-1]
 
@@ -121,7 +121,7 @@ for model_name in ['generic_male', 'generic_female']: # There's no neutral HIT
     input_path = f"--input_path results/{model_name}/bodyhull/"
     os.makedirs(f"results/{model_name}/bsip/", exist_ok=True)
     output_path = f"--output_path results/{model_name}/bsip/"
-    mass_c = f"--mass {71.1 if gender=='female' else 85.3}"
+    mass_c = f"--mass {71.5 if gender=='female' else 85.8}"
     gender_c = f"--gender={gender}"
     hull_c = f"--hull=loose"
     extra_commans = f"--debug=True --use_skel=True"
@@ -162,28 +162,45 @@ for model_name in ['generic_male', 'generic_female']: # There's no neutral HIT
                 x = smpl_result['vertices'][marker_dict[marker]]*1000
                 f.write(f"{x[0]}\t{x[1]}\t{x[2]}\t")
             f.write("\n")
+for model_name in ['generic_male', 'generic_female']: # There's no neutral HIT
 
-    continue
+    gender = model_name.split("_")[-1]
     # Scale the generic opensim model to the SMPL model
     import opensim
+    import pandas as pd
     osim_model = opensim.Model("data/resources/unscaled_generic.osim")
-    osim_model.initSystem()
-    scaleTool = opensim.ScaleTool("scripts/smpl_generic/setup_scale.xml")
-    time_array = opensim.ArrayDouble()
-    time_array.set(0, 0.0)
-    time_array.set(1, 0.1)
-    scaleTool.setSubjectMass(80.0)
-    scaleTool.getModelScaler().setApply(True)
-    scaleTool.getModelScaler().setMarkerFileName(f"results/{model_name}/marker/static.trc")
-    scaleTool.getModelScaler().setTimeRange(time_array)
-    scaleTool.getModelScaler().setOutputModelFileName(f"results/{model_name}/opensim/smpl_{model_name}_scaled_no_bsip.osim")
-    scaleTool.getModelScaler().setOutputScaleFileName(f"results/{model_name}/opensim/smpl_{model_name}.xml")
-    scaleTool.getModelScaler().processModel(osim_model, '', 80.0)
+    generic_heights = pd.read_csv("data/generic_heights.csv")
+    print(generic_heights)
+    h_rajogop = generic_heights[generic_heights['model'] == 'rajogopal'].height.values[0]
+    h_smpl = generic_heights[generic_heights['model'] == ("smpl_male" if model_name == 'generic_male' else "smpl_female")].height.values[0]
+    scale_factor = h_smpl / h_rajogop
+    print(f"Scaling factor for {model_name}: {scale_factor}")
+
+    generic_osim_model = f"data/resources/unscaled_generic.osim"
+
+    #load the generic model
+    generic_model = opensim_utils.get_model(generic_osim_model)
+
+    bodys_gen = generic_model.getBodySet()
+
+    joints_gen = generic_model.getJointSet()
+    
+    joint_scale_factors = {}
+    for i in range(joints_gen.getSize()):
+        joint_s = joints_gen.get(i)
+
+        # Scale location in parent frame
+        translation = joint_s.get_frames(0).get_translation()
+        print(f"Scaling joint {joint_s.getName()} with translation {translation}")
+        
+        translation = np.array([translation.get(0), translation.get(1), translation.get(2)])
+        new_translation = translation * scale_factor
+        joint_s.get_frames(0).set_translation(opensim.Vec3(new_translation[0], new_translation[1], new_translation[2]))
+
+    
 
 
     ### --- Insert BSIP into OpenSim model ---
-    opensim_model = f"results/{model_name}/opensim/smpl_{model_name}_scaled_no_bsip.osim"
-    opensim_model = opensim_utils.get_model(opensim_model)
-    hull_bsip = pd.read_pickle(f"results/{model_name}/bsip/generic_ignored_segments.pkl")
-    new_hull_bsip, osim_model = opensim_utils.hull_bsip_to_opensim_bsip(hull_bsip, opensim_model, arms_from_hull=True)
-    opensim_utils.save_model(opensim_model, f"results/{model_name}/opensim/smpl_{model_name}.osim")
+    hull_bsip = pd.read_pickle(f"results/{model_name}/bsip/HIT_generic_loose_w_skel.pkl")
+    new_hull_bsip, osim_model = opensim_utils.hull_bsip_to_opensim(hull_bsip, generic_model, arms_from_hull=True)
+    opensim_utils.save_opensim_model(generic_model, f"results/{model_name}/opensim/smpl_{model_name}.osim")
