@@ -37,8 +37,6 @@ def get_signal(osim_path, ik_path):
     modelProcessor.append(osim.ModOpReplaceJointsWithWelds(jointsToWeld))
     model = modelProcessor.process()
     model.initSystem()
-
-    # Import the coordinate data.
     table = osim.TimeSeriesTable(ik_path)
 
     # We need to add two columns for coordinates associated with the patellofemoral joint,
@@ -86,7 +84,6 @@ def get_signal(osim_path, ik_path):
         # Add the speed column to the table. Create a new label using the coordinate path
         # and replace 'value' with 'speed'.
         coordinates.appendColumn(label.replace('value', 'speed'), speed)
-
     # Now that we have a table with the coordinate values and speeds, let's convert
     # it to a StatesTrajectory so we can compute stuff from the model. Since we don't
     # have all of the states from the model in the table, we need to set 'allowMissingColumns'
@@ -111,6 +108,7 @@ def get_signal(osim_path, ik_path):
                'angular_momentum_x', 'angular_momentum_y', 'angular_momentum_z', 'central_inertia_00',
                'central_inertia_11', 'central_inertia_22']
     outputs = pd.DataFrame(columns=columns, index=range(numTimes))
+
     for itime in range(numTimes):
         # Get the current SimTK::State and realize to Stage::Velocity, which is the
         # minimum stage required to compute the quantities below.
@@ -118,35 +116,36 @@ def get_signal(osim_path, ik_path):
         model.realizeVelocity(state)
 
         # Calculate the center of mass position and velocity.
-        com_pos = model.calcMassCenterPosition(state)
-        com_vel = model.calcMassCenterVelocity(state)
-        outputs.loc[itime, 'com_pos_x'] = com_pos[0]
-        outputs.loc[itime, 'com_pos_y'] = com_pos[1]
-        outputs.loc[itime, 'com_pos_z'] = com_pos[2]
-        outputs.loc[itime, 'com_vel_x'] = com_vel[0]
-        outputs.loc[itime, 'com_vel_y'] = com_vel[1]
-        outputs.loc[itime, 'com_vel_z'] = com_vel[2]
+        #com_pos = model.calcMassCenterPosition(state)
+        #com_vel = model.calcMassCenterVelocity(state)
+        #outputs.loc[itime, 'com_pos_x'] = com_pos[0]
+        #outputs.loc[itime, 'com_pos_y'] = com_pos[1]
+        #outputs.loc[itime, 'com_pos_z'] = com_pos[2]
+        #outputs.loc[itime, 'com_vel_x'] = com_vel[0]
+        #outputs.loc[itime, 'com_vel_y'] = com_vel[1]
+        #outputs.loc[itime, 'com_vel_z'] = com_vel[2]
 
         # Calculate the kinetic energy.
         outputs.loc[itime, 'kinetic_energy'] = model.calcKineticEnergy(state)
 
-        # For whole-body angular momentum and inertia, we need to go down into Simbody.
-        matter = model.getMatterSubsystem()
-        momentum = matter.calcSystemCentralMomentum(state)
-        # 'momentum' is a SpatialVec containing the angular and linear momentum in a pair of Vec3's.
-        # The first Vec3 is the angular component.
-        angular_momentum = momentum.get(0)
-        outputs.loc[itime, 'angular_momentum_x'] = angular_momentum[0]
-        outputs.loc[itime, 'angular_momentum_y'] = angular_momentum[1]
-        outputs.loc[itime, 'angular_momentum_z'] = angular_momentum[2]
+        ## For whole-body angular momentum and inertia, we need to go down into Simbody.
+        #matter = model.getMatterSubsystem()
+        #momentum = matter.calcSystemCentralMomentum(state)
+        ## 'momentum' is a SpatialVec containing the angular and linear momentum in a pair of Vec3's.
+        ## The first Vec3 is the angular component.
+        #angular_momentum = momentum.get(0)
+        #outputs.loc[itime, 'angular_momentum_x'] = angular_momentum[0]
+        #outputs.loc[itime, 'angular_momentum_y'] = angular_momentum[1]
+        #outputs.loc[itime, 'angular_momentum_z'] = angular_momentum[2]
+#
+        ## The central inertia is the inertia tensor of the system about the center of mass.
+        ## We'll just store the moments of inertia (i.e., the diagonal elements).
+        #inertia = matter.calcSystemCentralInertiaInGround(state)
+        #moments = inertia.getMoments()
+        #outputs.loc[itime, 'central_inertia_00'] = moments[0]
+        #outputs.loc[itime, 'central_inertia_11'] = moments[1]
+        #outputs.loc[itime, 'central_inertia_22'] = moments[2]
 
-        # The central inertia is the inertia tensor of the system about the center of mass.
-        # We'll just store the moments of inertia (i.e., the diagonal elements).
-        inertia = matter.calcSystemCentralInertiaInGround(state)
-        moments = inertia.getMoments()
-        outputs.loc[itime, 'central_inertia_00'] = moments[0]
-        outputs.loc[itime, 'central_inertia_11'] = moments[1]
-        outputs.loc[itime, 'central_inertia_22'] = moments[2]
 
     # Save the outputs to a CSV file.
     return outputs

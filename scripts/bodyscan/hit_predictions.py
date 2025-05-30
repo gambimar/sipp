@@ -12,6 +12,7 @@ sys.path.append(os.getcwd()) # Im confused
 participant_info = pd.read_csv('../data/participant_info.csv')
 commandlist = []
 for participant in ['P01', 'P02', 'P03', 'P04', 'P05', 'P06']:
+    continue
     for scan in ['body','face','scan','skin']: # No HIT inference for inner objs
         scan_names = {
             'body': 'bodyscan',
