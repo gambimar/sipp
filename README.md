@@ -1,6 +1,6 @@
 # MRIGait_EmpkinS
-
-Repository for C01 - Phase I - WP4: MRI Validation of MSK model personalization
+Repository for C01 - Phase I - WP4: MRI Validation of MSK model personalization. Attention:
+**We cannot provide all data, such as the raw MRI data, smartphone pictures and initial avatars, due to privacy concerns. Therefore, running the "mesh_pipeline.py" and "reshape_mri.py" scripts will not work out of the box. However, we provide the SMPL fits and segmentation masks in the "results" folder in the data repository. The remaining scripts can be run with these results to reproduce the results in the paper.**
 
 ## Getting started
 
@@ -10,86 +10,51 @@ Repository for C01 - Phase I - WP4: MRI Validation of MSK model personalization
 3. Get SKEL from [here](github) and follow the instructions to install it - the dependencies are already included in our environment file.
 4. Get HIT from [here](github) and follow the instructions to install it. You will need to create a new environment, because the dependencies are incompatible with the the main environment file.
 
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
-
+### Get our data
+1. Download the data from [here](todo) and extract it in the root of this repository.
+2. The data should contain two folders:
 ```
-cd existing_repo
-git remote add origin https://mad-srv.informatik.uni-erlangen.de/MadLab/Biomech-Simu/mrigait_empkins.git
-git branch -M main
-git push -uf origin main
+data/...
+results/...
+```
+We do not provide raw MRI data, but the SMPL fits together with the segmentation masks are available in the "results" folder.
+
+3. Obtain addBiomechanics from [here](https://app.addbiomechanics.org/data/8cf6c9e4-5b47-4c5e-9b8f-90ee4aa39575/MRI2025/), download them and structure them as follows:
+```
+results/P01/
+    gait/
+        addB-ignore_phys/ <-- S01 folder on addBiomechanics
+            IK/
+            ID/
+            Models/
+        addB-with_phys/
+            S01_HIT/ <-- from addBiomechanics
+            S01_SGEN/ <-- from addBiomechanics
+            generic/ <-- S01_with_phys folder on addBiomechanics
+    ...
 ```
 
-## Integrate with your tools
+### Reproduce experiments
+1. Get all results from the [results repository](todo) or run the scripts below to reproduce the results:
+```
+python scripts/bodyscan/mesh_pipeline.py
+python scripts/bodyscan/hit_predictions.py
+python scripts/bodyscan/all_bisp_estimations.py
 
-- [ ] [Set up project integrations](https://mad-srv.informatik.uni-erlangen.de/MadLab/Biomech-Simu/mrigait_empkins/-/settings/integrations)
+python scripts/smpl_generic/create_generic_models.py
+python scripts/smpl_generic/generic_models_scale_and_id.py
 
-## Collaborate with your team
+python scripts/gait/create_all_osim_models.py
+python scripts/gait/run_id_all.py
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+python -m src.mri.reshape_mri --scan_result_path results/P01/bodyhull/smpl_fit/scan/ --mri_hull_path results/P01/MRI/final_masks --scan_name scaneca --participant P01 --hull_name_mri all --output_path results/P01/MRI/bodyhull/
+python -m src.mri.reshape_mri --scan_result_path results/P02/bodyhull/smpl_fit/scan/ --mri_hull_path results/P02/MRI/final_masks --scan_name scaneca --participant P02 --hull_name_mri all --output_path results/P02/MRI/bodyhull/
+python -m src.mri.reshape_mri --scan_result_path results/P03/bodyhull/smpl_fit/scan/ --mri_hull_path results/P03/MRI/final_masks --scan_name scaneca --participant P03 --hull_name_mri all --output_path results/P03/MRI/bodyhull/
+python -m src.mri.reshape_mri --scan_result_path results/P04/bodyhull/smpl_fit/scan/ --mri_hull_path results/P04/MRI/final_masks --scan_name scaneca --participant P04 --hull_name_mri all --output_path results/P04/MRI/bodyhull/
+python -m src.mri.reshape_mri --scan_result_path results/P05/bodyhull/smpl_fit/scan/ --mri_hull_path results/P05/MRI/final_masks --scan_name scaneca --participant P05 --hull_name_mri all --output_path results/P05/MRI/bodyhull/
+python -m src.mri.reshape_mri --scan_result_path results/P06/bodyhull/smpl_fit/scan/ --mri_hull_path results/P06/MRI/final_masks --scan_name scaneca --participant P06 --hull_name_mri all --output_path results/P06/MRI/bodyhull/
+python scripts/mri/mri_id.py
+````
+2. Reproduce the results for the paper:
+Run `python scripts/mrigait_benchmark/run_mrigait_benchmark.py` to reproduce the MRIgait benchmark results. Then, run all cells in the Jupyter notebook `notebooks/paper_plots.ipynb` to reproduce the plots/other tables in the paper. 
 
-## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
-
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
