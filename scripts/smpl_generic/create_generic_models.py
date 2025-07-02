@@ -198,7 +198,7 @@ for model_name in ['generic_male', 'generic_female']: # There's no neutral HIT
         joint_s.get_frames(0).set_translation(opensim.Vec3(new_translation[0], new_translation[1], new_translation[2]))
 
     
-
+    opensim_utils.save_opensim_model(generic_model, f"results/{model_name}/opensim/scaled_generic_model.osim")
 
     ### --- Insert BSIP into OpenSim model ---
     hull_bsip = pd.read_pickle(f"results/{model_name}/bsip/HIT_generic_loose_w_skel.pkl")
