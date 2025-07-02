@@ -14,7 +14,7 @@ def find_git_root():
 
 git_root = find_git_root()
 
-participant_info = pd.read_csv(git_root+"/data/participant_info.csv")
+participant_info = pd.read_csv(git_root+"/data/participant_info.csv")#.iloc[[0,2,5]] # female subset
 participants = participant_info['participant'].tolist()
 mass_list = participant_info['mass_treadmill'].tolist()
 gender_list = participant_info['sex'].tolist()
@@ -47,7 +47,7 @@ for p, mass, gender in zip(participants, mass_list, gender_list):
         [scaled_generic_model, addB_model, sipp_model, sipp_generic_model, addB_SIPP_model, addB_SGEN_model],
         [scaled_res, addB_res, sipp_res, sipp_generic_res, addB_SIPP_model_res, addB_SGEN_model_res]
     ):
-        rnt = True if i < 5 else False  # For the last two models, we want to return not kinetic
+        rnt = False if i < 5 else False  # For the last two models, we want to return not kinetic
         res.append(mrigait_benchmark_main(
             gt_model=gt_model,
             model2=model,
@@ -65,6 +65,6 @@ scaled_res, addB_res, sipp_res, sipp_generic_res, addB_SIPP_model_res, addB_SGEN
 for res, name in zip([scaled_res, addB_res, sipp_res, sipp_generic_res, addB_SIPP_model_res, addB_SGEN_model_res],
                 ['scaled_generic', 'addB', 'sipp', 'sipp_generic', 'addB_SIPP', 'addB_SGEN']):
     print(f'===== {name} Model Results =====')
-    print(res.describe())
+    print(res.describe().loc[['mean', 'std']])
     print()
 
