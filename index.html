@@ -229,7 +229,7 @@
 <body>
     <div class="container">
         <header class="header">
-            <h1 class="title">From Smartphone Images to Musculoskeletal Models: Personalized Inertial Parameter Estimation</h1>
+            <h1 class="title">From Body Hulls to Musculoskeletal Models: Personalized Inertial Parameter Estimation</h1>
 
             <div class="authors">
                 <strong>Markus Gambietz</strong><sup>1</sup>, 
@@ -305,11 +305,7 @@
         <section class="abstract">
             <h2>Abstract</h2>
             <p>
-                Every human body is different, however, current movement analysis does not reflect that, as it heavily relies on generic musculoskeletal models. Usually, these models are scaled to match the participants' body segment lengths and body weight, but not taking individual body shape into account. This can lead to errors in the estimation of joint forces and torques, which are important to accurately estimate musculoskeletal variables.
-Thus, we developed a method to estimate body segment inertial parameters based on smartphone pictures. From the pictures, we reconstruct the body hull, estimate the skeletal shape and pose, and then estimate the distribution of bone, lean, and fatty tissues. We then segment the body hull and assign each tissue type a density, which is used to calculate the body segment inertial parameters.
-These personalized models were validated with an experiment including gait and magnetic resonance imaging measurements. We found that our method leads to a reduction of residual forces of up to 14.9% and a reduction of metabolic cost of up to 12.8% when compared to generic musculoskeletal models. Furthermore, the shape-based inertial parameter personalization method creates participant-specific musculoskeletal models that are closer to the MRI-derived ground truth than generic models.
-To allow for the use of our method with existing data, we also introduce two new generic musculoskeletal models, which are based on the average standing body shapes and show similar joint moment outcomes, but less reduction of residual forces as the personalized models.
-            </p>
+                Every human body is different, however, current movement analysis does not reflect that, as it heavily relies on generic musculoskeletal models. Usually, these models are scaled to match the participants’ body segment lengths and body weight, but not taking individual body shape into account. This can lead to errors in the estimation of joint forces and torques, which are important to accurately estimate musculoskeletal variables. Thus, we developed a method to estimate body segment inertial parameters based on body hulls acquired via smartphone pictures. From the body hull, we infer the skeletal shape and pose, and then estimate the distribution of bone, lean, and fatty tissues. We then segment the body hull and assign each tissue type a density, which is used to calculate the body segment inertial parameters. To allow for the use of our method with existing data, we also introduce two new generic musculoskeletal models, which are based on the average standing body shapes. Validation using MRI-derived ground-truth models shows that our method creates participant-specific musculoskeletal models that are closer to the MRI-derived ground truth than scaled generic models. Additionally, we performed lab-based gait experiments to evaluate the effect of our method on residual forces and joint moments, where we found that our method leads to a reduction of residual forces of up to 14.9% and a reduction of metabolic cost of up to 12.8% when compared to generic musculoskeletal models. Our new generic models show similar joint moment outcomes, but less reduction of residual forces than the personalized models.            </p>
         </section>
 
 
@@ -318,7 +314,7 @@ To allow for the use of our method with existing data, we also introduce two new
             <p>
                 We are developing a web application to allow users to create personalized musculoskeletal models using body hull recordings - no coding required!
                 <br>
-                <a href="https://terminplaner.dfn.de/MMFOhOkc6bhXn3Qe" class="link-button mail">Sign up for our web-app here!</a>
+                <a href="https://docs.google.com/forms/d/e/1FAIpQLSeFPaeDzTxREop1YmTd1wXH4-RdL1n6Nr6Fv6ZhmOZoLQuUxw/viewform?usp=dialog" class="link-button mail">Sign up for our web-app here!</a>
             </p>
         </section>
 
