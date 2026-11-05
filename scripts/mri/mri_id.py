@@ -21,8 +21,8 @@ for p, mass, _ in zip(participants, mass_list, gender_list):
             continue
         c0 = "python src/opensim/inverse_dynamics.py"
         c1 = f"--ik_path=results/{p}/gait/addB-ignore_phys/IK/Trial{trial}.mot"
-        c2 = f"--osim_file="+os.path.abspath(f"results/{p}/MRI/osim_models/mri.osim")
-        c3 = f"--output_file=results/{p}/gait/ID_results/Trial{trial}_{name}.sto"
+        c2 = f"--osim_file="+os.path.abspath(f"results/{p}/MRI/osim_models/mri2.osim")
+        c3 = f"--output_file=results/{p}/gait/ID_results/Trial{trial}_{name}_2.sto"
         c4 = f"--mot_path=data/{p}/gait/Trial{trial}.mot --lowpass_f=15"
 
         if trial == 1:

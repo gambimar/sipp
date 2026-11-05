@@ -21,7 +21,7 @@ gender_list = participant_info['sex'].tolist()
 # Replace "M" and "F" with "male" and "female"
 gender_list = ["male" if g == "M" else "female" for g in gender_list]
 
-scaled_res, addB_res, sipp_res, sipp_generic_res, addB_SIPP_model_res, addB_SGEN_model_res = [], [], [], [], [], []
+scaled_res, addB_res, sipp_res, sipp_generic_res, addB_SIPP_model_res, addB_SGEN_model_res, sipp_ih_res, sipp_smpl_res = [], [], [], [], [], [], [], []
 
 for p, mass, gender in zip(participants, mass_list, gender_list):
     # Run the MRIGait benchmark for each participant
@@ -32,6 +32,9 @@ for p, mass, gender in zip(participants, mass_list, gender_list):
     sipp_generic_model = f"{git_root}/results/{p}/gait/ID_results/SMPL_generic_scale.osim"
     addB_SIPP_model = f"{git_root}/results/{p}/gait/addB-with_phys/S0{p[-1]}_HIT/Models/match_markers_and_physics.osim"
     addB_SGEN_model = f"{git_root}/results/{p}/gait/addB-with_phys/S0{p[-1]}_SGEN/Models/match_markers_and_physics.osim"
+
+    sipp_ih = f"{git_root}/results/{p}/bodyhull/bsipw_shoes/InsideHumans_skin_loose_w_skel.osim"
+    sipp_smpl = f"{git_root}/results/{p}/bodyhull/bsipw_shoes/SMPL_body_loose.osim"
 
     if True: # debug
         import src.opensim.opensim_utils as opensim_utils
@@ -44,10 +47,10 @@ for p, mass, gender in zip(participants, mass_list, gender_list):
     
     i = 0
     for model, res in zip(
-        [scaled_generic_model, addB_model, sipp_model, sipp_generic_model, addB_SIPP_model, addB_SGEN_model],
-        [scaled_res, addB_res, sipp_res, sipp_generic_res, addB_SIPP_model_res, addB_SGEN_model_res]
+        [scaled_generic_model, addB_model, sipp_model, sipp_generic_model, addB_SIPP_model, addB_SGEN_model, sipp_ih, sipp_smpl],
+        [scaled_res, addB_res, sipp_res, sipp_generic_res, addB_SIPP_model_res, addB_SGEN_model_res, sipp_ih_res, sipp_smpl_res]
     ):
-        rnt = False if i < 5 else False  # For the last two models, we want to return not kinetic
+        rnt = False# if i < 5 else True  # For the last two models, we want to return not kinetic
         res.append(mrigait_benchmark_main(
             gt_model=gt_model,
             model2=model,
@@ -59,11 +62,11 @@ for p, mass, gender in zip(participants, mass_list, gender_list):
     print(gt_model_df)
 # Print the mean results for each model
 print("Scaled Generic Model Results:")
-scaled_res, addB_res, sipp_res, sipp_generic_res, addB_SIPP_model_res, addB_SGEN_model_res = \
+scaled_res, addB_res, sipp_res, sipp_generic_res, addB_SIPP_model_res, addB_SGEN_model_res, sipp_ih_res, sipp_smpl_res = \
     pd.concat(scaled_res), pd.concat(addB_res), pd.concat(sipp_res), pd.concat(sipp_generic_res), \
-    pd.concat(addB_SIPP_model_res), pd.concat(addB_SGEN_model_res)
-for res, name in zip([scaled_res, addB_res, sipp_res, sipp_generic_res, addB_SIPP_model_res, addB_SGEN_model_res],
-                ['scaled_generic', 'addB', 'sipp', 'sipp_generic', 'addB_SIPP', 'addB_SGEN']):
+    pd.concat(addB_SIPP_model_res), pd.concat(addB_SGEN_model_res), pd.concat(sipp_ih_res), pd.concat(sipp_smpl_res)
+for res, name in zip([scaled_res, addB_res, sipp_res, sipp_generic_res, addB_SIPP_model_res, addB_SGEN_model_res, sipp_ih_res, sipp_smpl_res],
+                ['scaled_generic', 'addB', 'sipp', 'sipp_generic', 'addB_SIPP', 'addB_SGEN', 'sipp_ih', 'sipp_smpl']):
     print(f'===== {name} Model Results =====')
     print(res.describe().loc[['mean', 'std']])
     print()

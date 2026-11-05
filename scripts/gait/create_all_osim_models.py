@@ -5,7 +5,7 @@ import src.opensim.opensim_utils as opensim_utils
 
 for participant in ['P01', 'P02', 'P03', 'P04', 'P05', 'P06']:
     base_path = f'results/{participant}/bodyhull/bsipw_shoes/'
-    for pipeline, scan in zip(['HIT', 'InsideHumans','SMPL'], ['body', 'skin','body']):
+    for pipeline, scan in zip(['IH2'], ['skin']):#zip(['HIT', 'InsideHumans','SMPL'], ['body', 'skin','body']):
         for skel in [True, False]:
             if skel:
                 hull_bsip = pd.read_pickle(f'{base_path}/{pipeline}_{scan}_loose_w_skel.pkl')

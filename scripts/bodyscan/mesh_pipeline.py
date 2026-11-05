@@ -9,6 +9,7 @@ skin_layer_name = "skin_layer.obj"
 musc_layer_name = "musc_layer.obj"
 skel_layer_name = "skel_layer.obj"
 scnc_layer_name = "scaneca.ply"
+ih2_layer_name = "skin.obj"
 
 if __name__ == "__main__":
     # Add the parent-parent directory to the path
@@ -80,7 +81,7 @@ if __name__ == "__main__":
                                 process_dataset_name, save_configs, set_seed,
                                initialize_fit_verts_loss_weights,load_loss_weights_config,
                                initialize_fit_bm_loss_weights)
-            for mesh_name in [skel_layer_name, musc_layer_name, skin_layer_name, body_scan_name, face_scan_name, scnc_layer_name]:
+            for mesh_name in [ih2_layer_name]:#,skel_layer_name, musc_layer_name, skin_layer_name, body_scan_name, face_scan_name, scnc_layer_name]:
                 if mesh_name.startswith("final_fit_invtrans"):
                     mesh_name = mesh_name[-12:]
                     landmarks_path = f"{result_path}/transformed/{mesh_name[:-4]}_landmarks.json"
@@ -89,6 +90,9 @@ if __name__ == "__main__":
                     mesh_name = mesh_name.replace(".ply",".obj")
                     landmarks_path = f"{result_path}/transformed/{mesh_name[:-4]}_landmarks.json"
                     mesh_path = f"{result_path}/transformed/{mesh_name}"
+                elif mesh_name == "skin.obj":
+                    landmarks_path = f"{result_path}/transformed/{mesh_name[:-4]}_layer_landmarks.json"
+                    mesh_path = f"{data_path}/{mesh_name}"
                 else:
                     landmarks_path = f"{result_path}/transformed/{mesh_name[:-4]}_landmarks.json"
                     mesh_path = f"{data_path}/{mesh_name}"

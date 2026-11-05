@@ -32,6 +32,8 @@ def run_all(mode, ffilt=None):
                 output_path += f"-addB"
             if mode['SBP']:
                 output_path += f"-SBP-{mode['pipeline']}_{mode['scan']}"
+            if mode.get('skel', False):
+                output_path += f"_w_skel"
             output_path += f".sto"
 
             mot_path = f'data/{participant}/gait/Trial{trial}.mot'
@@ -42,8 +44,11 @@ def run_all(mode, ffilt=None):
                 osim_path = f'results/{participant}/gait/addB-with_phys/generic/Models/match_markers_and_physics.osim'
             elif not mode['addB'] and mode['SBP']:
                 pipeline, scan = mode['pipeline'], mode['scan']
-                if mode == 'SMPL':
-                    osim_path = f'results/{participant}/bodyhull/bsipw_shoes/{pipeline}_{scan}_loose.osim'
+                if (mode['pipeline'] == 'SMPL') or (mode['pipeline'] == 'IH2'):
+                    if mode.get('skel', False):
+                        osim_path = f'results/{participant}/bodyhull/bsipw_shoes/{pipeline}_{scan}_loose_w_skel.osim'
+                    else:
+                        osim_path = f'results/{participant}/bodyhull/bsipw_shoes/{pipeline}_{scan}_loose.osim'
                 else:
                     osim_path = f'results/{participant}/bodyhull/bsipw_shoes/{pipeline}_{scan}_loose_w_skel.osim'
             else: 
@@ -103,27 +108,43 @@ mode_IH = {
     'scan': 'skin',
 }
 
+mode_IH2 = {
+    'addB': False,
+    'SBP': True,
+    'pipeline': 'IH2',
+    'scan': 'skin',
+}
+
+mode_IH2_skel = {
+    'addB': False,
+    'SBP': True,
+    'pipeline': 'IH2',
+    'scan': 'skin',
+    'skel': True,
+}
+
 
 
 if __name__ == "__main__":
-    run_all(mode0)
-    run_all(mode1)
-    run_all(mode2)
-    run_all(mode3)
-    run_all(mode4)
-
-    # Sensitivity analyses
-    # Modelling
-    run_all(mode_SMPL)
-    #run_all(mode_IH) # InsideHumans is not yet available in the public repository
-
-    # Filter tests
-    for ffilt in [6,9,12,15,20,30]:
-
-        pass
-        # Compare SIPP to scaled
-        run_all(mode2, ffilt=ffilt)
-        run_all(mode3, ffilt=ffilt)
+    run_all(mode_IH2_skel)
+    #run_all(mode0)
+    #run_all(mode1)
+    #run_all(mode2)
+    #run_all(mode3)
+    #run_all(mode4)
+#
+    ## Sensitivity analyses
+    ## Modelling
+    #run_all(mode_SMPL)
+    ##run_all(mode_IH) # InsideHumans is not yet available in the public repository
+#
+    ## Filter tests
+    #for ffilt in [6,9,12,15,20,30]:
+#
+    #    pass
+    #    # Compare SIPP to scaled
+    #    run_all(mode2, ffilt=ffilt)
+    #    run_all(mode3, ffilt=ffilt)
     
     
 """ # Arguments to the ID script
