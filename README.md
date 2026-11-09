@@ -5,7 +5,7 @@ Official repository for the Plos Computational Biology submission:
 From Smartphone Images to Musculoskeletal Models: Personalized Inertial Parameter Estimation
 
 Attention:
-**We cannot provide all data, such as the raw MRI data, smartphone pictures and initial avatars, due to privacy concerns. Therefore, running the "mesh_pipeline.py" and "reshape_mri.py" scripts will not work out of the box. However, we provide the SMPL fits and segmentation masks in the "results" folder in the data repository. The remaining scripts can be run with these results to reproduce the results in the paper.**
+**We cannot provide all data, such as the raw MRI data, smartphone pictures and initial avatars, due to privacy concerns. Therefore, running the `mesh_pipeline.py` and `reshape_mri.py` scripts will not work out of the box. However, we provide the SMPL fits and segmentation masks in the "results" folder in the data repository. The remaining scripts can be run with these results to reproduce the results in the paper.**
 
 ## Getting started
 
