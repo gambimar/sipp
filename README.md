@@ -1,3 +1,5 @@
+> **⚠️ Erratum:** A coordinate-frame error in the body segment inertial parameters (CoM and inertia) of the SIPP-based models was found after publication. See [ERRATA.md](ERRATA.md) for details and corrected numbers. **All issues have been corrected in the uploaded Zenodo / SimTK datasets** - please re-download them if you obtained them earlier.
+
 # SIPP
 Official repository for the Plos Computational Biology submission: 
 From Smartphone Images to Musculoskeletal Models: Personalized Inertial Parameter Estimation

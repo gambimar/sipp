@@ -33,10 +33,10 @@ def main():
     parser.add_argument('--hull', type=str, default='loose', choices=['loose', 'tight'],
                         help='Whether to use the loose or tight hull for BSIP estimation')
     # Pipeline - HIT, SMPL, InsideHumans
-    parser.add_argument('--pipeline', type=str, default='SMPL', choices=['HIT', 'SMPL', 'InsideHumans', 'MRI'],
+    parser.add_argument('--pipeline', type=str, default='SMPL', choices=['HIT', 'SMPL', 'InsideHumans', 'MRI','IH2'],
                         help='Which pipeline to use for BSIP estimation')
     # Input path to the body scan data
-    parser.add_argument('--input_path', type=str, default='results/P06/bodyhull',
+    parser.add_argument('--input_path', type=str, default='results/P01/bodyhull',
                         help='Path to the body scan data')
     # Which model to use for the BSIP estimation
     parser.add_argument('--model', type=str, default='skin', choices=['body', 'face', 'skin', 'scan','generic', 'MRI'],
@@ -54,7 +54,7 @@ def main():
     parser.add_argument('--use_skel', type=bool, default=False,
                         help='Whether to include the SKEL skeleton for the BSIP estimation')
     # Debug flag
-    parser.add_argument('--debug', type=bool, default=False,
+    parser.add_argument('--debug', type=bool, default=True,
                         help='Whether to print debug information')
 
     args = parser.parse_args()
@@ -107,6 +107,19 @@ def main():
                 "skin": [mesh_utils.load_trimesh_from_file(os.path.join(args.input_path, 'smpl_fit', 'skin', 'loose', 'skin_layer_ignored_segments.obj'))],
                 "musc": [mesh_utils.load_trimesh_from_file(os.path.join(args.input_path, 'smpl_fit', 'musc', 'loose', 'musc_layer_ignored_segments.obj'))],
             }
+        elif args.pipeline == 'IH2':
+            smpl_fit = np.load(os.path.join(args.input_path, 'smpl_fit', 'skin', 'loose', f'skin_ignored_segments.npz'), allow_pickle=True)
+            skel_result = mesh_utils.get_skel_output(os.path.join(args.input_path, 'smpl_fit', 'skin', 'loose_skel', f'skin_ignored_segments.npz'), args.gender)
+            p = args.input_path.split('/')[-2]
+            from src.bodyscan.slice_mesh_blender import clean_mesh_with_marching_cubes
+            meshes_of_interest = {
+                # Find the participant ID in the input path
+                "skin": [clean_mesh_with_marching_cubes(mesh_utils.load_trimesh_from_file(os.path.join("data", p, "bodyhull", "skin.obj")))],
+                "musc": [clean_mesh_with_marching_cubes(mesh_utils.load_trimesh_from_file(os.path.join("data", p, "bodyhull", "muscle.obj")))],
+                "skel": [clean_mesh_with_marching_cubes(mesh_utils.load_trimesh_from_file(os.path.join("data", p, "bodyhull", "skeleton.obj")))],
+            }
+            # testing with skin from SMPL fit
+            meshes_of_interest['skin'] = [clean_mesh_with_marching_cubes(mesh_utils.load_trimesh_from_file(os.path.join(args.input_path, 'smpl_fit', 'skin', 'loose', 'skin_ignored_segments.obj')))]
         else:
             raise ValueError(f"Pipeline {args.pipeline} does not exist. Choices: ['SMPL', 'HIT', 'InsideHumans']")
 

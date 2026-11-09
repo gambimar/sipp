@@ -8,16 +8,21 @@ if __name__ == "__main__":
         bodymass_w_shoes = part_info[part_info['participant'] == participant].mass_treadmill.values[0]
         gender = part_info[part_info['participant'] == participant].sex.values[0]
         gender = "female" if gender == "F" else "male"
-        for pipeline in ['HIT', 'SMPL', 'InsideHumans']:
+        for pipeline in ['IH2']:#, 'HIT', 'SMPL', 'InsideHumans']:
             for hull in ['loose', 'tight']:
                 if hull == 'tight':
                     continue
                 for model in ['body', 'face', 'skin', 'scan']:
                     if pipeline == 'InsideHumans' and model != 'skin':
                         continue
+                    if pipeline == 'IH2' and model != 'skin':
+                        continue
                     for use_skel in [True, False]:
+                        if not use_skel: continue
                         skel_c = '--use_skel=True' if use_skel else ''
                         for bm, name in zip([bodymass, bodymass_w_shoes], ['', 'w_shoes']):
+                            if name != 'w_shoes':
+                                continue
                             command = f"python src/bodyscan/estimate_bsip.py --hull {hull} --pipeline {pipeline} --input_path results/{participant}/bodyhull --model {model} --output_path results/{participant}/bodyhull/bsip{name} --mass {bm} {skel_c} --gender={gender}"
                             # run the command
                             print(command)

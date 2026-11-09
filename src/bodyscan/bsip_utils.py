@@ -31,6 +31,12 @@ default_densities = {
             "musc": 1090,
             "skel": 1178,
         },
+    "IH2":
+        {
+            "skin": 911,
+            "musc": 1090,
+            "skel": 1178,
+        },
     "SKEL":
         {
             "pelvis": 1178,
@@ -96,6 +102,8 @@ def estimate_bsip(result_meshes, body_orientations, joints, args):
             mesh_sip = get_inertia_and_update_main_body_mass(mesh_sip, "skin", ["musc"])
         elif args.pipeline == "MRI":
             mesh_sip = get_inertia_and_update_main_body_mass(mesh_sip, "all", ["trabecular_bone", "cortical_bone", "fat", "muscle", "lung"])
+        elif args.pipeline == "IH2":
+            mesh_sip = get_inertia_and_update_main_body_mass(mesh_sip, "skin", ["skel", "musc"])
         else: # Only the SMPL model, do nothing
             mesh_sip = get_inertia_and_update_main_body_mass(mesh_sip, "all", [])
 

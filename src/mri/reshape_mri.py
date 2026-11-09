@@ -210,9 +210,9 @@ def main():
         opensim_model = f"results/{args.participant}/gait/addB-ignore_phys/Models/match_markers_but_ignore_physics.osim"
         opensim_model = opensim_utils.get_model(opensim_model)
         hull_bsip = pd.read_pickle(f"results/{args.participant}/bodyhull/bsip/MRI_skin_loose.pkl")
-        new_hull_bsip, osim_model = opensim_utils.hull_bsip_to_opensim(hull_bsip, opensim_model, extra_shoe_weight=(mass), arms_from_hull=False)
-        os.makedirs(f"results/{args.participant}/mri/osim_models", exist_ok=True)
-        opensim_utils.save_opensim_model(osim_model, f"results/{args.participant}/mri/osim_models/mri.osim")
+        new_hull_bsip, osim_model = opensim_utils.hull_bsip_to_opensim(hull_bsip, opensim_model, extra_shoe_weight=0, arms_from_hull=False)
+        os.makedirs(f"results/{args.participant}/MRI/osim_models", exist_ok=True)
+        opensim_utils.save_opensim_model(osim_model, f"results/{args.participant}/MRI/osim_models/mri.osim")
 
 
 

@@ -1,0 +1,134 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=2cm]{geometry}
+\usepackage{booktabs}
+\usepackage{amsmath,amssymb}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage[table]{xcolor}
+
+\setlist{itemsep=2pt,topsep=4pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+\newcommand{\new}[1]{\textbf{#1}}
+\newcommand{\arr}{$\rightarrow$}
+\newcommand{\Erel}{E_{\mathrm{rel}}}
+\renewcommand{\arraystretch}{1.15}
+
+\title{Errata: coordinate frame of body segment inertial parameters (BSIP)}
+\author{}
+\date{}\vspace{-2em}
+
+\begin{document}
+\maketitle
+
+\section*{Summary}
+Centers of mass and inertia tensors estimated from the body hulls were stored in the SKEL/SMPL body frame (X left, Y up, Z forward) but written into OpenSim bodies, which use X forward, Y up, Z right. The values were therefore rotated by $90^\circ$ about the vertical axis (arm segments, which lie along X in the T-pose, were affected differently). Masses were not affected.
+
+Two further problems were found and fixed while checking this:
+\begin{itemize}
+  \item The merged \texttt{foot\_l}/\texttt{foot\_r}/\texttt{HAT} bodies computed by \texttt{get\_bsip\_dataframe\_with\_feet\_and\_HAT} were incorrectly accumulating joint offsets, which led to incorrect CoM and inertia values.
+  \item The residual-force table in the paper mixed up two low-pass cutoffs: the \emph{scaled} and \emph{SIPP (HIT)} rows were computed with a 12\,Hz cutoff, all other rows with 15\,Hz. We now report all residuals at 15\,Hz.
+\end{itemize}
+
+\section*{Affected models and files}
+\begin{itemize}
+  \item All models created with \texttt{hull\_bsip\_to\_opensim} (MRI ground truth, SIPP, SIPP (IH), SIPP (SMPL), SIPP-generic / S-gen), including the published \texttt{sipp\_generic\_male.osim}, \texttt{sipp\_generic\_female.osim} and \texttt{sipp\_generic.zip}. \textbf{Please re-download the corrected versions.}
+  \item Models derived from them, e.g.\ the AddBiomechanics runs started from SIPP / S-gen models (addB+SIPP, addB+S-gen). These have not been re-run yet.
+  \item Not affected: scaled generic models, plain AddBiomechanics models, segment masses.
+\end{itemize}
+
+\section*{Effect on the reported results}
+All main findings of the paper are unchanged. Numbers change as follows (mean over participants; paper $\rightarrow$ corrected).
+
+\subsection*{MRIgait benchmark}
+We reomved the merged foot rows from the benchmark as the previous values were incorrect. Because of that the relative mass errors are now much lower. In general, SIPP-based models are still much better than scaled models in relative CoM and inertia errors, with only the mass error being slightly higher in SIPP-based models.
+
+\begingroup
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\noindent\makebox[\textwidth][c]{%
+\begin{tabular}{@{}l cccc@{}}
+\toprule
+Model & $\Erel$ mass & $\Erel$ CoM & $\Erel$ inertia & $\Erel$ kin.\ energy \\
+\midrule
+scaled      & 0.282 \arr \new{0.261} & 0.604 \arr \new{0.331} & 0.376 \arr \new{0.663} & 0.264 \arr \new{0.239} \\
+SIPP        & 0.102 \arr \new{0.115} & 0.171 \arr \new{0.128} & 0.163 \arr \new{0.205} & 0.110 \arr \new{0.135} \\
+S-gen       & 0.056 \arr \new{0.069} & 0.184 \arr \new{0.181} & 0.116 \arr \new{0.148} & 0.099 \arr \new{0.132} \\
+SIPP (IH)   & 0.096 \arr \new{0.109} & 0.170 \arr \new{0.133} & 0.121 \arr \new{0.140} & 0.098 \arr \new{0.124} \\
+SIPP (SMPL) & 0.099 \arr \new{0.111} & 0.172 \arr \new{0.131} & 0.147 \arr \new{0.173} & 0.107 \arr \new{0.133} \\
+\bottomrule
+\end{tabular}}
+
+\vspace{6pt}
+\noindent\makebox[\textwidth][c]{%
+\begin{tabular}{@{}l cccc@{}}
+\toprule
+Model & $E$ mass [kg] & $E$ CoM [m] & $E$ inertia [kg\,m$^2$] & $E$ kin.\ energy [J] \\
+\midrule
+scaled      & 0.082 \arr \new{0.081} & 0.087 \arr \new{0.050} & 0.209 \arr \new{0.043} & 2.079 \arr \new{1.876} \\
+SIPP        & 0.057 \arr \new{0.055} & 0.032 \arr \new{0.018} & 0.173 \arr \new{0.009} & 1.041 \arr \new{1.318} \\
+S-gen       & 0.056 \arr \new{0.055} & 0.034 \arr \new{0.026} & 0.186 \arr \new{0.012} & 0.988 \arr \new{1.247} \\
+SIPP (IH)   & 0.056 \arr \new{0.054} & 0.032 \arr \new{0.019} & 0.173 \arr \new{0.009} & 0.946 \arr \new{1.233} \\
+SIPP (SMPL) & 0.057 \arr \new{0.056} & 0.032 \arr \new{0.019} & 0.173 \arr \new{0.007} & 1.029 \arr \new{1.307} \\
+\bottomrule
+\end{tabular}}
+\endgroup
+
+\subsection*{Pelvis residual forces / moments}
+31 trials, all models at 15\,Hz, $F$ in \%BW, $M$ in \%BW$\cdot$height.
+
+Our bug only affected our contributed BSIP values, not the scaled models. Now that the BSIP values are correct, the SIPP models show even lower residuals than reported in the paper. The residual forces for the scaled model were only affected by the mix-up in the low-pass cutoff. Thus, the corrected values are slightly higher than the paper values.
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+Model & $F_{\mathrm{norm}}$ & $M_{\mathrm{norm}}$ \\
+\midrule
+MRI         & 7.70 \arr \new{7.20} & 3.13 \arr \new{2.72} \\
+SIPP (HIT)  & 6.56$^\dagger$ \arr \new{6.88} & 2.55$^\dagger$ \arr \new{2.49} \\
+S-gen       & 7.77 \arr \new{7.22} & 3.00 \arr \new{2.74} \\
+SIPP (IH)   & 7.34 \arr \new{6.94} & 2.61 \arr \new{2.44} \\
+SIPP (SMPL) & 7.29 \arr \new{6.89} & 2.68 \arr \new{2.50} \\
+scaled      & 7.71$^\dagger$ \arr \new{8.43} & 2.94$^\dagger$ \arr \new{3.11} \\
+\bottomrule
+\end{tabular}
+\end{center}
+{\footnotesize $^\dagger$ These paper values were computed at 12\,Hz.}
+
+\subsection*{Relative residual reduction compared with the scaled model}
+Pelvis residual norms, mean $|x|$ over 31 trials. The table shows the relative reduction of the pelvis residuals compared with the scaled model, as reported in the paper and after correction. SIPP-based models perform better by an even larger margin than reported in the paper. The biggest improvement is with the MRI model and the SIPP-generic models, which now show a 15\,\% and 14\,\% reduction in $F_{\mathrm{norm}}$, respectively, compared with the scaled model.
+
+\begin{center}
+\small
+\begin{tabular}{lcccc}
+\toprule
+Model & $F_{\mathrm{norm}}$, paper & $F_{\mathrm{norm}}$, \new{corrected} & $M_{\mathrm{norm}}$, paper & $M_{\mathrm{norm}}$, \new{corrected} \\
+\midrule
+MRI                        & $-0$\,\%  & \new{$-15$\,\%} & $+6$\,\%  & \new{$-13$\,\%} \\
+SIPP (HIT)                 & $-15$\,\% & \new{$-18$\,\%} & $-13$\,\% & \new{$-20$\,\%} \\
+S-gen                      & $+1$\,\%  & \new{$-14$\,\%} & $+2$\,\%  & \new{$-12$\,\%} \\
+SIPP (IH)                  & $-5$\,\%  & \new{$-18$\,\%} & $-11$\,\% & \new{$-22$\,\%} \\
+SIPP (SMPL)                & $-5$\,\%  & \new{$-18$\,\%} & $-9$\,\%  & \new{$-20$\,\%} \\
+SIPP (HIT), both at 12\,Hz & $-15$\,\% & \new{$-19$\,\%} & $-13$\,\% & \new{$-20$\,\%} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section*{Known remaining limitations}
+\begin{itemize}
+  \item AddBiomechanics-based models (addB+SIPP, addB+S-gen) still have to be re-run.
+\end{itemize}
+
+\section*{Code changes}
+\begin{itemize}
+  \item \texttt{src/opensim/opensim\_utils.py}: \texttt{hull\_bsip\_to\_opensim} converts CoM ($c' = Rc$) and inertia ($I' = RIR^{\top}$) to the OpenSim frame (\texttt{skel\_to\_opensim\_bsip}); \texttt{get\_bsip\_dataframe\_with\_feet\_and\_HAT} rewritten with \texttt{composite\_bsip}. Tests: \texttt{tests/test\_composite\_bsip.py}.
+  \item \texttt{scripts/bodyscan/verify\_bsip\_frames.py} checks the frame of the BSIP in any generated model.
+  \item \texttt{src/mrigait\_benchmark/mrigait\_benchmark.py} excludes the merged foot rows.
+\end{itemize}
+
+\end{document}
