@@ -34,13 +34,9 @@ for body in ["toes","calcn","tibia","femur","humerus","hand","ulna"]:
     hull_bsip.loc[ir, "mass"] = avg_mass
     com_r = np.array(list(hull_bsip[hull_bsip.segment == r].mass_center))
     com_l = np.array(list(hull_bsip[hull_bsip.segment == l].mass_center))
-    if body in ["toes","calcn","tibia","femur"]:
-        com_mirror_axis = 2
-    else:
-        com_r = com_r[:, [1,0,2]] 
-        com_l = com_l[:, [1,0,2]]
-        com_l[:,1] = -com_l[:,1]
-        com_mirror_axis = 2
+    # the hull BSIPs are in the SKEL/SMPL frame (X left, Y up, Z forward); hull_bsip_to_opensim converts them to the OpenSim frame afterwards.
+    # Left/right are therefore mirror images about the SKEL X axis, for every body (also the arms, which lie along X in the T-pose).
+    com_mirror_axis = 0
     com_r[0,com_mirror_axis] = -com_r[0,com_mirror_axis]
     avg_com = (com_l + com_r) / 2
     hull_bsip.at[il, "mass_center"] = avg_com[0].copy()
@@ -50,16 +46,14 @@ for body in ["toes","calcn","tibia","femur","humerus","hand","ulna"]:
     inertia_r = np.array(list(hull_bsip[hull_bsip.segment == r].inertia))
     inertia_l = np.array(list(hull_bsip[hull_bsip.segment == l].inertia))
     avg_inertia = (inertia_l + inertia_r) / 2
-    if body not in ["toes","calcn","tibia","femur"]:
-        avg_inertia[0,[0,1,2],[0,1,2]] = avg_inertia[0,[1,0,2],[1,0,2]]
     hull_bsip.at[il, "inertia"] = avg_inertia[0] * np.eye(3) # zero out off-diagonal terms
     hull_bsip.at[ir, "inertia"] = avg_inertia[0] * np.eye(3)
 
 
 
 for body in ["pelvis", "lumbar_body"]:
-    # set y-components to zero
-    com_mask = np.array([1,1,0])
+    # set the lateral component (SKEL X) to zero
+    com_mask = np.array([0,1,1])
     inertia_mask = np.eye(3)
 
     hull_bsip.loc[hull_bsip.segment == body, "mass_center"] = hull_bsip.loc[hull_bsip.segment == body, "mass_center"].apply(lambda x: np.array(x) * com_mask)
@@ -67,14 +61,13 @@ for body in ["pelvis", "lumbar_body"]:
 
 hull_bsip['mass'] *= scale_factor
 hull_bsip['inertia'] *= scale_factor
-# hull_bsip_to_opensim renames the 'segment' column to 'name' in place, so snapshot
-# the pre-rename frame here for the second call below.
+# keep a copy of the (SKEL frame) hull BSIPs for the sneaker model below
 hull_bsip_pre_rename = hull_bsip.copy()
 new_hull_bsip, osim_model = opensim_utils.hull_bsip_to_opensim(hull_bsip, generic_model, arms_from_hull=True)
 opensim_utils.save_opensim_model(generic_model, f"sipp_runmad/sipp_generic_runmad.osim")
 
 # Create sipp_runmad sneaker model
-foot_mass = hull_bsip[(hull_bsip.name.isin(["calcn_r","talus_r","toes_r"]))].mass.sum()
+foot_mass = hull_bsip[(hull_bsip.segment.isin(["calcn_r","talus_r","toes_r"]))].mass.sum()
 foot_mass_shod = foot_mass + .45
 scale_factor_shod = foot_mass_shod / foot_mass
 hull_bsip_shod = hull_bsip_pre_rename.copy()

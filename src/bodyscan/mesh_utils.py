@@ -214,7 +214,7 @@ def adjust_hit_scaling(hit_path, smpl_fit):
         mesh.vertices += smpl_fit['trans']
         save_trimesh_to_obj(mesh, os.path.join(hit_path, f"{output}_mesh_adjusted.obj"))
 
-def deform_mesh(input_vertices, target_vertices, query_points, kernel = 'thin_plate_spline', epsilon=30.0, neighbors=None, smoothing=1e-5, degree=None):
+def deform_mesh(input_vertices, target_vertices, query_points, kernel = 'cubic', epsilon=30.0, neighbors=None, smoothing=1e-5, degree=None):
     """
         Deform query points, that are in the input mesh deformation space, to the target mesh deformation space.
 

@@ -29,11 +29,11 @@ def main(gt_model, model2, trajectory_files, verbose = False, return_not_kinetic
 
     df_gt = opensim_utils.get_bsip_dataframe_with_feet_and_HAT(opensim_utils.get_model(gt_model))
     df2 = opensim_utils.get_bsip_dataframe_with_feet_and_HAT(opensim_utils.get_model(model2))
-    # remove: HAT, talus_r, calcn_r, toes_r, toes_l, talus_l, calcn_l
+    # remove: HAT, foot_l, foot_r (merged calcn+talus+toes), talus_r, calcn_r, toes_r, toes_l, talus_l, calcn_l
 
     # The arms are not in the MRI model, so we remove them from the comparison
-    df_gt = df_gt[~df_gt['name'].isin(['HAT', 'talus_r', 'calcn_r', 'toes_r', 'toes_l', 'talus_l', 'calcn_l', 'patella_r', 'patella_l', 'ulna_r', 'ulna_l', 'radius_r', 'radius_l', 'hand_r', 'hand_l', 'humerus_r', 'humerus_l'])]
-    df2 = df2[~df2['name'].isin(['HAT', 'talus_r', 'calcn_r', 'toes_r', 'toes_l', 'talus_l', 'calcn_l', 'patella_r', 'patella_l', 'ulna_r', 'ulna_l', 'radius_r', 'radius_l', 'hand_r', 'hand_l', 'humerus_r', 'humerus_l'])]
+    df_gt = df_gt[~df_gt['name'].isin(['HAT', 'talus_r', 'calcn_r', 'toes_r', 'toes_l', 'talus_l', 'calcn_l', 'patella_r', 'patella_l', 'ulna_r', 'ulna_l', 'radius_r', 'radius_l', 'hand_r', 'hand_l', 'humerus_r', 'humerus_l', 'foot_l', 'foot_r'])]
+    df2 = df2[~df2['name'].isin(['HAT', 'talus_r', 'calcn_r', 'toes_r', 'toes_l', 'talus_l', 'calcn_l', 'patella_r', 'patella_l', 'ulna_r', 'ulna_l', 'radius_r', 'radius_l', 'hand_r', 'hand_l', 'humerus_r', 'humerus_l', 'foot_l', 'foot_r'])]
 
     mass_e = (df_gt['mass'] - df2['mass']).mean()
     rel_mass_e = ((df_gt['mass'] - df2['mass']) / df_gt['mass']).mean()

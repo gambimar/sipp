@@ -43,6 +43,9 @@ ENV/
 # Jupyter
 .ipynb_checkpoints/
 notebooks/
+scripts/framefix_eval/
+results/framefix_eval/
+
 
 # Testing / tooling caches
 .pytest_cache/

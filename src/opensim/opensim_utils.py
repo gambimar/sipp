@@ -53,49 +53,52 @@ def get_parent_joint(model, body_name):
             return joint.getName()
     return None
 
+def composite_bsip(masses, coms, inertias):
+    """
+        Combine rigid bodies into one. All inputs are expressed in the SAME frame (orientation and origin).
+        masses: (n,), coms: (n, 3) body centers of mass, inertias: (n, 3, 3) body inertias about their own center of mass.
+        Returns total mass, composite center of mass and the composite inertia about the composite center of mass,
+        using the parallel axis theorem I = sum_i [ I_i + m_i * ((d_i . d_i) E - d_i d_i^T) ], with d_i = com_i - com_composite.
+    """
+    masses = np.asarray(masses, dtype=float)
+    coms = np.asarray(coms, dtype=float).reshape(-1, 3)
+    inertias = np.asarray(inertias, dtype=float).reshape(-1, 3, 3)
+    mass = masses.sum()
+    com = (masses[:, None] * coms).sum(axis=0) / mass
+    inertia = np.zeros((3, 3))
+    for m_i, c_i, I_i in zip(masses, coms, inertias):
+        d = c_i - com
+        inertia += I_i + m_i * (np.dot(d, d) * np.eye(3) - np.outer(d, d))
+    return mass, com, inertia
+
+
+def _body_bsip_in_frame(model, state, body_name, reference_name):
+    """ Mass, center of mass and inertia of a body, expressed in the frame of the reference body (default pose of the model). """
+    body = model.getBodySet().get(body_name)
+    T = body.findTransformBetween(state, model.getBodySet().get(reference_name))  # body frame -> reference frame
+    R = T.R().asMat33()
+    R = np.array([[R.get(i, j) for j in range(3)] for i in range(3)])
+    p = to_numpy3(T.p())
+    return body.getMass(), R @ to_numpy3(body.getMassCenter()) + p, R @ to_numpy3_3(body.get_inertia()) @ R.T
+
+
 def get_bsip_dataframe_with_feet_and_HAT(model, foot = ['calcn','talus','toes'], HAT = ['pelvis','torso']):
+    """
+        BSIP dataframe of all bodies plus the combined bodies foot_l, foot_r (expressed in the frame of the first foot body, calcn)
+        and HAT (expressed in the frame of the first HAT body, pelvis). The relative position and orientation of the bodies
+        is taken from the model in its default pose; the combined inertia is about the combined center of mass.
+    """
     bodies_df = get_bsip_dataframe(model)
-    #joint_df = get_joint_dataframe(model)
+    state = model.initSystem()
+
+    def combine(names, reference):
+        parts = [_body_bsip_in_frame(model, state, n, reference) for n in names]
+        return composite_bsip([p[0] for p in parts], [p[1] for p in parts], [p[2] for p in parts])
+
     for side in ['_l', '_r']:
-        # Add translations 
-        foot_mass = 0
-        for f in foot:
-            foot_mass += bodies_df.loc[bodies_df['name'] == f+side, 'mass'].values[0]
-        foot_mass_center = np.zeros(3)
-        trans = np.zeros(3)
-        for f in foot:
-            if foot != 'calcn': # calcn is the parent segment for the foot
-                trans += get_joint_translation(model, f+side)
-            foot_mass_center += bodies_df.loc[bodies_df['name'] == f+side, 'mass'].values[0]*(bodies_df.loc[bodies_df['name'] == f+side, 'mass_center'].values[0]+trans)
-        foot_mass_center /= foot_mass
-        foot_inertia = np.zeros((3,3))
-        trans = np.zeros(3)
-        for f in foot:
-            if foot != 'calcn':
-                trans += get_joint_translation(model, f+side)
-            foot_inertia += bodies_df.loc[bodies_df['name'] == f+side, 'inertia'].values[0] + \
-                    bodies_df.loc[bodies_df['name'] == f+side, 'mass'].values[0] * \
-                    np.outer(foot_mass_center+trans, foot_mass_center+trans)
-        bodies_df.loc[bodies_df.shape[0]] = ['foot'+side, foot_mass, foot_mass_center, foot_inertia]
-    HAT_mass = 0
-    for h in HAT:
-        HAT_mass += bodies_df.loc[bodies_df['name'] == h, 'mass'].values[0]
-    HAT_mass_center = np.zeros(3)
-    trans = np.zeros(3)
-    for h in HAT: # pelvis is the parent segment for the torso
-        if h != 'pelvis':
-            trans += get_joint_translation(model, h)
-        HAT_mass_center += bodies_df.loc[bodies_df['name'] == h, 'mass'].values[0]*(bodies_df.loc[bodies_df['name'] == h, 'mass_center'].values[0]+trans)
-    HAT_mass_center /= HAT_mass
-    HAT_inertia = np.zeros((3,3))
-    trans = np.zeros(3)
-    for h in HAT:
-        if h != 'pelvis':
-            trans += get_joint_translation(model, h)
-        HAT_inertia += bodies_df.loc[bodies_df['name'] == h, 'inertia'].values[0] + \
-                bodies_df.loc[bodies_df['name'] == h, 'mass'].values[0] * \
-                np.outer(HAT_mass_center+trans, HAT_mass_center+trans)
-    bodies_df.loc[bodies_df.shape[0]] = ['HAT', HAT_mass, HAT_mass_center, HAT_inertia]
+        names = [f + side for f in foot]
+        bodies_df.loc[bodies_df.shape[0]] = ['foot' + side, *combine(names, names[0])]
+    bodies_df.loc[bodies_df.shape[0]] = ['HAT', *combine(HAT, HAT[0])]
     return bodies_df
 
 def set_opensim_bsip_parameters(model, bodies_df):
@@ -202,16 +205,63 @@ def filter_data(data_path, lowpass_f, lowpass_order, mode='ik', return_df=False,
         return data_path.replace('.mot', '_filtered.mot'), data
     return data_path.replace('.mot', '_filtered.mot')
 
+# --- SKEL/SMPL body frame -> OpenSim body frame -------------------------------------------------------------
+# estimate_bsip returns CoM and inertia in the SKEL/SMPL body frames (X to the left, Y up, Z forward).
+# OpenSim body frames are X forward, Y up, Z to the right. The change of basis (x, y, z) -> (z, y, -x) maps one to the other
+# for pelvis, torso, legs and feet. SKEL's arm frames are in the T-pose (arm along +-X), OpenSim's arms hang down (arm along -Y),
+# so the arms need an additional rotation about the (forward) X axis: right arm (x, y, z) -> (z, x, y), left arm (z, -x, -y).
+# All matrices are proper rotations (det = +1), which keeps the inertia tensor valid: I' = R I R^T.
+_R_SKEL_TO_OPENSIM = np.array([[0., 0., 1.],
+                               [0., 1., 0.],
+                               [-1., 0., 0.]])
+_R_SKEL_TO_OPENSIM_ARM = {
+    '_r': np.array([[0., 0., 1.], [1., 0., 0.], [0., 1., 0.]]),
+    '_l': np.array([[0., 0., 1.], [-1., 0., 0.], [0., -1., 0.]]),
+}
+_ARM_BODIES = ('humerus', 'ulna', 'radius', 'hand')
+
+
+def skel_to_opensim_rotation(body_name):
+    """ Rotation matrix R with v_opensim = R @ v_skel for the given body name. """
+    for arm in _ARM_BODIES:
+        for side, R in _R_SKEL_TO_OPENSIM_ARM.items():
+            if body_name == arm + side:
+                return R
+    return _R_SKEL_TO_OPENSIM
+
+
+def skel_to_opensim_bsip(bsip_df):
+    """
+        Convert mass centers and inertias of a BSIP dataframe (column 'name' or 'segment') from the SKEL/SMPL body
+        frames to the OpenSim body frames. Returns a copy.
+    """
+    df = bsip_df.copy()
+    name_col = 'name' if 'name' in df.columns else 'segment'
+    com, inertia = [], []
+    for _, row in df.iterrows():
+        R = skel_to_opensim_rotation(row[name_col])
+        com.append(R @ np.asarray(row['mass_center'], dtype=float).reshape(3))
+        inertia.append(R @ np.asarray(row['inertia'], dtype=float).reshape(3, 3) @ R.T)
+    df['mass_center'] = com
+    df['inertia'] = inertia
+    return df
+
+
 def hull_bsip_to_opensim(hull_bsip, model,
                          arms_from_hull=False,
                          extra_shoe_weight=0,
                          keep_bodies=False):
+
+    hull_bsip = hull_bsip.copy() # Do not modify the caller's dataframe
 
     # Check if lumbar_body is in the hull_bsip.names and replace it with "torso"
     if 'lumbar_body' in hull_bsip['segment'].values:
         hull_bsip.loc[hull_bsip['segment'] == 'lumbar_body', 'segment'] = 'torso'
 
     hull_bsip.rename(columns={'segment': 'name'}, inplace=True)
+
+    # The hull BSIPs are in the SKEL/SMPL body frames, OpenSim uses different body frames
+    hull_bsip = skel_to_opensim_bsip(hull_bsip)
 
     # Define arms segments
     if not arms_from_hull:
@@ -235,18 +285,7 @@ def hull_bsip_to_opensim(hull_bsip, model,
         bodymass_new = hull_bsip['mass'].sum()
         hull_bsip['mass'] = hull_bsip['mass'] / bodymass_new * bodymass
         hull_bsip['inertia'] = hull_bsip['inertia'].apply(lambda x: x / bodymass_new * bodymass)
-    else: 
-        # Rotate the arms to the correct orientation, discrepancy between skel and opensim - T-pose or handing arms defaults
-        from scipy.spatial.transform import Rotation as R
-        for arm in arm_segments:
-            if arm in hull_bsip['name'].values:
-                if arm.endswith('_r'):
-                    rotate = [0,0,-np.pi/2]
-                else:
-                    rotate = [0,0,np.pi/2]
-                r =  R.from_euler('xyz', rotate, degrees=False)
-                hull_bsip.loc[hull_bsip['name'] == arm, 'mass_center'] = hull_bsip.loc[hull_bsip['name'] == arm, 'mass_center'] @ r.as_matrix()
-                hull_bsip.loc[hull_bsip['name'] == arm, 'inertia'] = hull_bsip.loc[hull_bsip['name'] == arm, 'inertia'].apply(lambda x: r.as_matrix() @ x @ r.as_matrix().T)
+    # else: arms come from the hull and were already rotated into the OpenSim frame by skel_to_opensim_bsip
 
     if extra_shoe_weight > 0:
         # Add the weight of the shoes to the feet
